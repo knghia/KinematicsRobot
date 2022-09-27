@@ -16,18 +16,9 @@ class GLWidget(QGLWidget):
         super(GLWidget, self).__init__()
         self.setMinimumSize(600, 400)
 
-        self.alpha = 0
-        self.beta = 0
-        self.gama = 0
-
-        self.xRot = -2500
-        self.yRot = 2000
-        self.zRot = 0.0
-
-        self.z_zoom = -1
-        self.xTran = 0
-        self.yTran = 0
-
+        self.x_ = 0
+        self.y_ = 0
+        self.z_ = -0.283
         self.delta_robot = delta.DeltaRobot()
 
     def initializeGL(self):
@@ -52,6 +43,18 @@ class GLWidget(QGLWidget):
 
     def drawGL(self):
         glPushMatrix()
+        
+        try:
+            self.delta_robot.Position = np.array([self.x_, self.y_, self.z_])
+        except delta.InvalidValue:
+            QMessageBox.warning(self,"","Error")
+            self.x_ = 0
+            self.y_ = 0
+            self.z_ = -0.283
+            self.delta_robot.Position = np.array([0, 0, -0.283])
+        
+        position = self.delta_robot.Position
+
         B = self.delta_robot.get_B_B()
         b = self.delta_robot.get_B_b()
         P = self.delta_robot.get_P_P()
@@ -98,8 +101,6 @@ class GLWidget(QGLWidget):
         glVertex3f(*cb_P)
         glEnd()
 
-        print(cb_P)
-
         glBegin(GL_TRIANGLES)
         for i in range(3):
             glVertex3f(*b[:,i])
@@ -128,10 +129,10 @@ class GLWidget(QGLWidget):
     def paintGL(self):
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glPushMatrix()
-        glTranslate(0, 0, self.z_zoom)
-        glRotated(self.xRot/16.0, 1.0, 0.0, 0.0)
-        glRotated(self.yRot/16.0, 0.0, 1.0, 0.0)
-        glRotated(self.zRot/16.0, 0.0, 0.0, 1.0)
+        glTranslate(0, 0, -1)
+        glRotated(-2500/16.0, 1.0, 0.0, 0.0)
+        glRotated(2000/16.0, 0.0, 1.0, 0.0)
+        glRotated(0.0/16.0, 0.0, 0.0, 1.0)
         glRotated(+90.0, 1.0, 0.0, 0.0)
         self.drawGL()
         glPopMatrix()
@@ -155,72 +156,49 @@ class GLWidget(QGLWidget):
     def hex_to_rgb(self, hex):
         return list(int(hex[i:i+2], 16)/255 for i in (0, 2, 4)) 
 
-    def setAngle(self,value):
-        self.delta_robot.Degree = np.array(value)
-        self.updateGL()
-
-class LINK3_2D(QWidget):
+class DeltaRobot(QWidget):
     def __init__(self, *args, **kwargs):
-        super(LINK3_2D, self).__init__()
+        super(DeltaRobot, self).__init__()
 
         self.widget_gl = GLWidget(self)
-
-        self.alpha_slider = QSlider(Qt.Horizontal)
-        self.alpha_slider.setRange(-360,360)
-        self.alpha_slider.valueChanged.connect(self.change_value)
-
-        self.beta_slider = QSlider(Qt.Horizontal)
-        self.beta_slider.setRange(-360,360)
-        self.beta_slider.valueChanged.connect(self.change_value)
-
-        self.gama_slider = QSlider(Qt.Horizontal)
-        self.gama_slider.setRange(-360,360)
-        self.gama_slider.valueChanged.connect(self.change_value)
+        self.value_la = QLabel(self)
 
         vbox = QVBoxLayout(self)
         vbox.addWidget(self.widget_gl)
-        vbox.addWidget(self.alpha_slider)
-        vbox.addWidget(self.beta_slider)
-        vbox.addWidget(self.gama_slider)
+        vbox.addWidget(self.value_la)
+
+        self.value_la.setText("{:0.3f} {:0.3f} {:0.3f}".format(self.widget_gl.x_, self.widget_gl.y_, self.widget_gl.z_))
 
     def keyPressEvent(self, event):
         if type(event) == QKeyEvent:
             if event.key() == Qt.Key_W:
-                self.widget_gl.z_zoom +=1
+                self.widget_gl.z_ += 0.01
                 self.widget_gl.updateGL()
-
+                
             elif event.key() == Qt.Key_S:
-                self.widget_gl.z_zoom -=1
+                self.widget_gl.z_ -= 0.01
                 self.widget_gl.updateGL()
 
             elif event.key() == Qt.Key_Down:
-                self.widget_gl.yRot += 100
+                self.widget_gl.y_ += 0.01
                 self.widget_gl.updateGL()
-
+            
             elif event.key() == Qt.Key_Up:
-                self.widget_gl.yRot -= 100
+                self.widget_gl.y_ -= 0.01
                 self.widget_gl.updateGL()
 
             elif event.key() == Qt.Key_Left:
-                self.widget_gl.zRot += 100
+                self.widget_gl.x_ += 0.01
                 self.widget_gl.updateGL()
 
             elif event.key() == Qt.Key_Right:
-                self.widget_gl.zRot -= 100
+                self.widget_gl.x_ -= 0.01
                 self.widget_gl.updateGL()
 
-        print(self.widget_gl.z_zoom)
+        self.value_la.setText("{:0.3f} {:0.3f} {:0.3f}".format(self.widget_gl.x_, self.widget_gl.y_, self.widget_gl.z_))
 
-    def change_value(self,value):
-        value = []
-        value.append(self.alpha_slider.value())
-        value.append(self.beta_slider.value())
-        value.append(self.gama_slider.value())
-
-        self.widget_gl.setAngle(value)
-    
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    window = LINK3_2D()
+    window = DeltaRobot()
     window.show()
     sys.exit(app.exec_())

@@ -11,14 +11,11 @@ class DeltaRobot:
         self.__sp = sp
         self.__L = L
         self.__l = l
-        self.__h = h
         self.load_base_dis()
 
-        self.__pass_degree = np.array([0,0,0]).T
         self.__angle = np.array([0,0,0]).T
         self.__degree = np.array([0,0,0]).T
-        self.__pass_position = self.get_position(self.__degree)
-        self.__position = self.__pass_position
+        self.__position = self.get_position(np.array([0,0,0]).T)
         self.Degree = np.array([0,0,0]).T
 
     def load_base_dis(self):
@@ -47,7 +44,6 @@ class DeltaRobot:
 
     @Degree.setter
     def Degree(self, degree):
-        self.__pass_degree = self.__degree
         self.__degree = degree
         self.__angle = self.__degree/180 * np.pi
         self.__pass_position = self.__position
@@ -178,15 +174,3 @@ class DeltaRobot:
         A_3 = [-np.sqrt(3) * (self.__wb + self.__L * np.cos(phi_3)) / 2,
                (self.__wb + self.__L * np.cos(phi_3)) / 2, -self.__L * np.sin(phi_3)]
         return np.array([A_1, A_2, A_3]).T
-
-    # def get_vector_B_A_v(self):
-    #     phi_1, phi_2, phi_3 = self.__angle
-    #     Av1 = [0, -self.__wb - self.__L *
-    #            np.cos(phi_1) + self.__up, -self.__L * np.sin(phi_1)]
-    #     Av2 = [np.sqrt(3) * (self.__wb + self.__L * np.cos(phi_2)) / 2 - self.__sp / 2,
-    #            (self.__wb + self.__L * np.cos(phi_2)) / 2 - self.__wp,
-    #            -self.__L * np.sin(phi_2)]
-    #     Av3 = [-np.sqrt(3) * (self.__wb + self.__L * np.cos(phi_3)) / 2 + self.__sp / 2,
-    #            (self.__wb + self.__L * np.cos(phi_3)) / 2 - self.__wp,
-    #            -self.__L * np.sin(phi_3)]
-    #     return np.array([Av1, Av2, Av3]).T
