@@ -9,6 +9,7 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtOpenGL import *
+import delta
 
 class GLWidget(QGLWidget):
     def __init__(self, *args, **kwargs):
@@ -23,9 +24,11 @@ class GLWidget(QGLWidget):
         self.yRot = 2000
         self.zRot = 0.0
 
-        self.z_zoom = 35
+        self.z_zoom = -1
         self.xTran = 0
         self.yTran = 0
+
+        self.delta_robot = delta.DeltaRobot()
 
     def initializeGL(self):
         ambientLight = [0.7, 0.7, 0.7, 1.0]
@@ -44,25 +47,87 @@ class GLWidget(QGLWidget):
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_NORMALIZE)
         glEnable(GL_BLEND)
-        glClearColor(178.0/255, 213.0/255, 214.0/255, 1.0)
+
+        glClearColor(193.0/255, 193.0/255, 193.0/255, 1.0)
 
     def drawGL(self):
-        glBegin(GL_LINES)
-        # X axis
-        self.setupColor([255,0,0])
-        glVertex3f(150,0,0)
-        glVertex3f(0,0,0)
+        glPushMatrix()
+        B = self.delta_robot.get_B_B()
+        b = self.delta_robot.get_B_b()
+        P = self.delta_robot.get_P_P()
+        A = self.delta_robot.get_vector_B_A()
 
-        # Y axis
-        self.setupColor([0,255,0])
-        glVertex3f(0,150,0)
-        glVertex3f(0,0,0)
+        position = self.delta_robot.Position
+        base_P = P
+        base_P[:, 0] += position
+        base_P[:, 1] += position
+        base_P[:, 2] += position
 
-        # Z axis
-        self.setupColor([0,0,255])
-        glVertex3f(0,0,150)
-        glVertex3f(0,0,0)
+        self.setupColor("0000F6")
+
+        glLineWidth(2)
+        glBegin(GL_TRIANGLES)
+        for i in range(3):
+            glVertex3f(*P[:,i])
         glEnd()
+
+        self.setupColor("FCC526")
+
+        glColor3f(1,1,1)
+        for i in [0,2]:
+            glBegin(GL_LINES)
+            glVertex3f(*B[:,i])
+            glVertex3f(*A[:,i])
+            glEnd()
+
+            glBegin(GL_LINES)
+            glVertex3f(*B[:,i])
+            glVertex3f(*A[:,i])
+            glEnd()
+        
+            glBegin(GL_LINES)
+            glVertex3f(*P[:,i])
+            glVertex3f(*A[:,i])
+            glEnd()
+
+        average = lambda array: np.array([sum(array[0]) / 3, sum(array[1]) / 3, sum(array[2]) / 3]).T
+        cb_P = average(base_P)
+
+        glBegin(GL_LINES)
+        glVertex3f(0,0,0)
+        glVertex3f(*cb_P)
+        glEnd()
+
+        glBegin(GL_LINES)
+        glVertex3f(*cb_P)
+        cb_P[2] -= 0.02
+        glVertex3f(*cb_P)
+        glEnd()
+
+        glBegin(GL_TRIANGLES)
+        for i in range(3):
+            glVertex3f(*b[:,i])
+        glEnd()
+
+        for i in [1]:
+            glBegin(GL_LINES)
+            glVertex3f(*B[:,i])
+            glVertex3f(*A[:,i])
+            glEnd()
+
+            glBegin(GL_LINES)
+            glVertex3f(*B[:,i])
+            glVertex3f(*A[:,i])
+            glEnd()
+        
+            glBegin(GL_LINES)
+            glVertex3f(*P[:,i])
+            glVertex3f(*A[:,i])
+            glEnd()
+
+        glFlush()
+
+        glPopMatrix()
 
     def paintGL(self):
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -82,28 +147,21 @@ class GLWidget(QGLWidget):
         glViewport(0, 0, w, h)
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
-        gluPerspective(100.0, w / float(h), 1.0, 20000.0)
+        gluPerspective(1.0, w / float(h), 1.0, 20000.0)
         glMatrixMode(GL_MODELVIEW)
         glLoadIdentity()
-        glTranslated(0.0, 0.0, -400.0)
+        glTranslated(0.0, 0.0, -40.0)
 
     def setupColor(self, color):
-        color[0] = color[0]/255
-        color[1] = color[1]/255
-        color[2] = color[2]/255
+        color = self.hex_to_rgb(color)
         glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, color)
 
-    # def setAlpha(self, alpha):
-    #     self.alpha = alpha*np.pi/180
-    #     self.updateGL()
+    def hex_to_rgb(self, hex):
+        return list(int(hex[i:i+2], 16)/255 for i in (0, 2, 4)) 
 
-    # def setBeta(self, beta):
-    #     self.beta = beta*np.pi/180
-    #     self.updateGL()
-
-    # def setGama(self, gama):
-    #     self.gama = gama*np.pi/180
-    #     self.updateGL()
+    def setAngle(self,value):
+        self.delta_robot.Degree = np.array(value)
+        self.updateGL()
 
 class LINK3_2D(QWidget):
     def __init__(self, *args, **kwargs):
@@ -111,33 +169,32 @@ class LINK3_2D(QWidget):
 
         self.widget_gl = GLWidget(self)
 
-        # self.alpha_slider = QSlider(Qt.Horizontal)
-        # self.alpha_slider.setRange(0,720)
-        # self.alpha_slider.valueChanged.connect(self.change_alpha_value)
+        self.alpha_slider = QSlider(Qt.Horizontal)
+        self.alpha_slider.setRange(-360,360)
+        self.alpha_slider.valueChanged.connect(self.change_value)
 
-        # self.beta_slider = QSlider(Qt.Horizontal)
-        # self.beta_slider.setRange(0,720)
-        # self.beta_slider.valueChanged.connect(self.change_beta_value)
+        self.beta_slider = QSlider(Qt.Horizontal)
+        self.beta_slider.setRange(-360,360)
+        self.beta_slider.valueChanged.connect(self.change_value)
 
-        # self.gama_slider = QSlider(Qt.Horizontal)
-        # self.gama_slider.setRange(0,720)
-        # self.gama_slider.valueChanged.connect(self.change_gama_value)
+        self.gama_slider = QSlider(Qt.Horizontal)
+        self.gama_slider.setRange(-360,360)
+        self.gama_slider.valueChanged.connect(self.change_value)
 
         vbox = QVBoxLayout(self)
         vbox.addWidget(self.widget_gl)
-        # vbox.addWidget(self.alpha_slider)
-        # vbox.addWidget(self.beta_slider)
-        # vbox.addWidget(self.gama_slider)
+        vbox.addWidget(self.alpha_slider)
+        vbox.addWidget(self.beta_slider)
+        vbox.addWidget(self.gama_slider)
 
     def keyPressEvent(self, event):
-        print(event.key())
         if type(event) == QKeyEvent:
             if event.key() == Qt.Key_W:
-                self.widget_gl.z_zoom +=100
+                self.widget_gl.z_zoom +=1
                 self.widget_gl.updateGL()
 
             elif event.key() == Qt.Key_S:
-                self.widget_gl.z_zoom -=100
+                self.widget_gl.z_zoom -=1
                 self.widget_gl.updateGL()
 
             elif event.key() == Qt.Key_Down:
@@ -156,17 +213,15 @@ class LINK3_2D(QWidget):
                 self.widget_gl.zRot -= 100
                 self.widget_gl.updateGL()
 
+        print(self.widget_gl.z_zoom)
 
+    def change_value(self,value):
+        value = []
+        value.append(self.alpha_slider.value())
+        value.append(self.beta_slider.value())
+        value.append(self.gama_slider.value())
 
-    # def change_alpha_value(self,value):
-    #     self.widget_gl.setAlpha(value)
-    
-    # def change_beta_value(self,value):
-    #     self.widget_gl.setBeta(value)
-
-    # def change_gama_value(self,value):
-    #     self.widget_gl.setGama(value)
-        
+        self.widget_gl.setAngle(value)
     
 if __name__ == "__main__":
     app = QApplication(sys.argv)
