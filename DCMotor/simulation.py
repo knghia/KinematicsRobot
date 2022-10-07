@@ -35,6 +35,8 @@ class GLWidget(QGLWidget):
         self.setMinimumSize(600, 400)
 
         self.Uin = 0
+        self.partUin = 0
+        self.theta0 = 0
         self.time = 0
         self.theta = 0
 
@@ -76,10 +78,15 @@ class GLWidget(QGLWidget):
         self.setColor([255, 0, 0])
         self.drawCircle(0,0,100)
 
+        if self.Uin != self.partUin:
+            self.theta0 = self.theta
+            self.partUin = self.Uin
+
         t = self.time
         _C1 = -alpha*((self.Uin/_C)/(alpha - beta))
         _C2 = beta*((self.Uin/_C)/(alpha - beta))
-        self.theta = (_C1/alpha)*math.e**(alpha*t)+ (_C2/beta)*math.e**(beta*t) + (self.Uin/_C)*t
+        self.theta = (_C1/alpha)*math.e**(alpha*t)+ (_C2/beta)*math.e**(beta*t) + (self.Uin/_C)*t + self.theta0*16
+        self.theta = self.theta/16
 
         x = 100*math.cos(self.theta)
         y = 100*math.sin(self.theta)
