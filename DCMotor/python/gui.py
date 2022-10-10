@@ -89,11 +89,11 @@ class DC_GlWidget(QGLWidget):
         self.part_thetat = 0
 
         self.U = 0
+        self.delta_U = 0
         self.t = 0
         self.wt = self.func_wt(0)
         self.thetat = self.func_thetat(0)
         self.sign = 1
-        self.delta_U = 0
 
     def paintGL(self):
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -102,10 +102,10 @@ class DC_GlWidget(QGLWidget):
         glPopMatrix()
 
     def func_wt(self,t):
-        return K*self.U*(A2*np.exp(x1*t) + A3*np.exp(x2*t) - (A2+A3))
+        return K*self.delta_U*(A2*np.exp(x1*t) + A3*np.exp(x2*t) - (A2+A3))
 
     def func_thetat(self,t):
-        return K*self.U*((A2/x1)*np.exp(x1*t) + (A3/x2)*np.exp(x2*t) - (A2+A3)*t - (A2/x1 + A3/x2))
+        return K*self.delta_U*((A2/x1)*np.exp(x1*t) + (A3/x2)*np.exp(x2*t) - (A2+A3)*t - (A2/x1 + A3/x2))
 
     def drawGL(self):  
         glPushMatrix()
@@ -115,13 +115,9 @@ class DC_GlWidget(QGLWidget):
             self.part_thetat = self.thetat
             self.part_U = self.U
             self.t = 0
-            if (self.U > 0 ):
-                self.sign = 1
-            else:
-                self.sign = -1
-            
-        self.wt = K*self.delta_U*(A2*np.exp(x1*self.t) + A3*np.exp(x2*self.t) - (A2+A3)) + self.part_wt
-        self.thetat = K*self.delta_U*((A2/x1)*np.exp(x1*self.t) + (A3/x2)*np.exp(x2*self.t) - (A2+A3)*self.t - (A2/x1 + A3/x2)) + self.part_wt*self.t
+        
+        self.wt = self.func_wt(self.t) + self.part_wt
+        self.thetat =  self.func_thetat(self.t)+ self.part_wt*self.t
         self.thetat = self.thetat + self.part_thetat
 
         x = 50*np.cos(self.thetat)
@@ -172,6 +168,7 @@ class MainWindow(QtWidgets.QWidget):
         self.dc_motor = DC_GlWidget(self)
         
         self.text_value_la = QtWidgets.QLabel(self)
+        self.text_value_la.setText("12")
         self.voltage_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.voltage_slider.setRange(-24,24)
         self.voltage_slider.setValue(12)
