@@ -18,16 +18,16 @@ x1 = (-b-math.sqrt(delta))/(2*a)
 x2 = (-b+math.sqrt(delta))/(2*a)
 
 U = 12
-T = 0.05
-K = -Kt*Kt/(La*La*T*Jm)
-Q = U*Kt/(La*T)-Ra/La
-B1 = Q/((Q-x1)*(Q-x2))
-B2 = x1/((x1-x2)*(x1-Q))
-B3 = x2/((x2-x1)*(x2-Q))
+Tc = 0.05
+K = (Kt*U-Tc*Ra)/(Jm*La)
 
-t = np.linspace(0,2,2000)
-wt0 = K*(B1+B2+B3)
-wt = K*(B1*np.exp(Q*t)+ B2*np.exp(-Q*t)+ B3*np.exp(x1*t)) - wt0
+B1 = K/(x1*x2)
+B2 = (K-Tc*x1/Jm)/(x1*(x1-x2))
+B3 = (K-Tc*x2/Jm)/(x2*(x2-x1))
+
+t = np.linspace(0,1,1000)
+wt0 = B1+B2+B3
+wt = B1+ B2*np.exp(x1*t)+ B3*np.exp(x2*t) - wt0
 
 plt.plot(t,wt, label = "Speed")
 plt.legend()

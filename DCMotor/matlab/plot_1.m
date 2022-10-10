@@ -10,10 +10,10 @@ Ke = 0.235;
 Tc = 0.05;
 Uin = 12;
 
-ts = [-Tc*La -Tc*Ra Kt*Uin 0];
-ms = [Jm*La (Jm*Ra + Bm*La) Bm*Ra Kt*Ke 0]
+ts = [-Tc*La (Kt*Uin-Tc*Ra)];
+ms = [Jm*La (Jm*Ra + Bm*La) (Bm*Ra+Kt*Ke)];
 
-sys = tf(ts,ms);
+sys = tf(ts,ms)
 step(sys);
 
 
