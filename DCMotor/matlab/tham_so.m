@@ -22,9 +22,20 @@ inputs = {'u'};
 outputs = {'speed'; 'theta'};
 set(sys_tf,'InputName',inputs)
 set(sys_tf,'OutputName',outputs)
-
 step(sys_tf);
+hold on;
 
+% % % % % % % % % % %
+K = Kt/(La*Jm);
+A1 = 1/(x1*x2);
+A2 = 1/(x1*(x1-x2));
+A3 = 1/(x2*(x2-x1));
+t = linspace(0, 2.5, 2500);
+wt = K*(A2*exp(x1*t) + A3*exp(x2*t) - (A2+A3));
+plot(t,wt)
+hold on;
 
-
+thetat = K*((A2/x1)*exp(x1*t) + (A3/x2)*exp(x2*t) - (A2+A3)*t - (A2/x1 + A3/x2));
+plot(t,thetat)
+hold on;
 
