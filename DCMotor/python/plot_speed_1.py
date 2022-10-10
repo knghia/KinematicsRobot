@@ -18,16 +18,17 @@ x1 = (-b-math.sqrt(delta))/(2*a)
 x2 = (-b+math.sqrt(delta))/(2*a)
 
 U = 12
-K = U*Kt/(La*Jm)
-A1 = 1/(x1*x2)
-A2 = 1/(x1*(x1-x2))
-A3 = 1/(x2*(x2-x1))
+T = 0.05
+K = -Kt*Kt/(La*La*T*Jm)
+Q = U*Kt/(La*T)-Ra/La
+B1 = Q/((Q-x1)*(Q-x2))
+B2 = x1/((x1-x2)*(x1-Q))
+B3 = x2/((x2-x1)*(x2-Q))
 
-t = np.linspace(0,1,1000)
-wt = K*(A1+ A2*np.exp(x1*t) + A3*np.exp(x2*t))
-thetat = K*(A1*t+ (A2/x1)*np.exp(x1*t) + (A3/x2)*np.exp(x2*t))
+t = np.linspace(0,2,2000)
+wt0 = K*(B1+B2+B3)
+wt = K*(B1*np.exp(Q*t)+ B2*np.exp(-Q*t)+ B3*np.exp(x1*t)) - wt0
 
 plt.plot(t,wt, label = "Speed")
-plt.plot(t,thetat, label = "Theta")
 plt.legend()
 plt.show()

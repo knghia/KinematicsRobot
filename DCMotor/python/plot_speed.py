@@ -20,12 +20,7 @@ c = (Ke*Kt + Ra*Bm)/(La*Jm)
 delta = b**2 - 4*a*c
 x1 = (-b-math.sqrt(delta))/(2*a)
 x2 = (-b+math.sqrt(delta))/(2*a)
-"""
-when u_in(t) = 
-- 0 , t<=0
-- U1, 0<t<= t1
-- U2, t1<t
-"""
+
 K = Kt/(La*Jm)
 A1 = 1/(x1*x2)
 A2 = 1/(x1*(x1-x2))
