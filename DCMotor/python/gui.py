@@ -11,7 +11,6 @@ from OpenGL.GLU import *
 from OpenGL.GLUT import *
 from PyQt5.QtOpenGL import *
 
-
 Ra = 2
 La = 0.23
 Jm = 0.000052
@@ -81,12 +80,20 @@ class InvalidValue(Exception):
 class DC_GlWidget(QGLWidget):
     def __init__(self, parent):
         QGLWidget.__init__(self, parent)
-        self.setMinimumSize(600, 600)
+        self.setMinimumSize(400, 400)
+
+        self.U = 0
+        self.part_U = 0
+        
+        self.part_wt = 0
+        self.part_thetat = 0
 
         self.U = 0
         self.t = 0
-        self.wt = 0
-        self.thetat = 0
+        self.wt = self.func_wt(0)
+        self.thetat = self.func_thetat(0)
+        self.sign = 1
+        self.delta_U = 0
 
     def paintGL(self):
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -94,18 +101,34 @@ class DC_GlWidget(QGLWidget):
         self.drawGL()
         glPopMatrix()
 
+    def func_wt(self,t):
+        return K*self.U*(A2*np.exp(x1*t) + A3*np.exp(x2*t) - (A2+A3))
+
+    def func_thetat(self,t):
+        return K*self.U*((A2/x1)*np.exp(x1*t) + (A3/x2)*np.exp(x2*t) - (A2+A3)*t - (A2/x1 + A3/x2))
+
     def drawGL(self):  
         glPushMatrix()
+        if self.U - self.part_U != 0:
+            self.delta_U = self.U - self.part_U
+            self.part_wt = self.wt
+            self.part_thetat = self.thetat
+            self.part_U = self.U
+            self.t = 0
+            if (self.U > 0 ):
+                self.sign = 1
+            else:
+                self.sign = -1
+            
+        self.wt = K*self.delta_U*(A2*np.exp(x1*self.t) + A3*np.exp(x2*self.t) - (A2+A3)) + self.part_wt
+        self.thetat = K*self.delta_U*((A2/x1)*np.exp(x1*self.t) + (A3/x2)*np.exp(x2*self.t) - (A2+A3)*self.t - (A2/x1 + A3/x2)) + self.part_wt*self.t
+        self.thetat = self.thetat + self.part_thetat
 
-        self.wt = K*self.U*(A2*np.exp(x1*self.t) + A3*np.exp(x2*self.t) - (A2+A3))
-        self.thetat = K*self.U*((A2/x1)*np.exp(x1*self.t) + (A3/x2)*np.exp(x2*self.t) - (A2+A3)*self.t - (A2/x1 + A3/x2))
-        print(self.thetat)
-
-        x = 100*np.cos(self.thetat)
-        y = 100*np.sin(self.thetat)
+        x = 50*np.cos(self.thetat)
+        y = 50*np.sin(self.thetat)
 
         glBegin(GL_LINES)
-        self.setupColor([92,248,92])
+        self.setupColor([0xE6, 0x3E, 0x31])
         glVertex2f(x,y)
         glVertex2f(0,0)
         glEnd()
@@ -117,7 +140,7 @@ class DC_GlWidget(QGLWidget):
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
 
-        glOrtho(-200.0, 200.0, -200.0, 200.0, -200.0, 200.0)
+        glOrtho(-100.0, 100.0, -100.0, 100.0, -100.0, 100.0)
         glMatrixMode(GL_MODELVIEW)
 
     def initializeGL(self):
@@ -146,18 +169,18 @@ class MainWindow(QtWidgets.QWidget):
 
     def __init__(self, *args, **kwargs):
         super(MainWindow, self).__init__()
-
         self.dc_motor = DC_GlWidget(self)
-
+        
+        self.text_value_la = QtWidgets.QLabel(self)
         self.voltage_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.voltage_slider.setRange(-24,24)
-        self.voltage_slider.valueChanged.connect(self.set_voltage)
         self.voltage_slider.setValue(12)
-        self.load_bt = QtWidgets.QPushButton()
-        self.load_bt.clicked.connect(self.start_time)
+        self.voltage_slider.valueChanged.connect(self.load_text_value)
+        self.load_bt = QtWidgets.QPushButton(text="LOAD")
+        self.load_bt.clicked.connect(self.set_voltage)
 
-        self.speed_form = GraphicWidget(name="Speed",min= -200, max= 200)
-        self.theta_form = GraphicWidget(name="Theta",min= -10, max= 10)
+        self.speed_form = GraphicWidget(name="Speed",min= -80, max= 80)
+        self.theta_form = GraphicWidget(name="Theta",min= -200, max= 200)
 
         box = QtWidgets.QHBoxLayout(self)
 
@@ -165,6 +188,7 @@ class MainWindow(QtWidgets.QWidget):
         dc_box.addWidget(self.dc_motor)
         hbox = QtWidgets.QHBoxLayout()
         hbox.addWidget(self.voltage_slider)
+        hbox.addWidget(self.text_value_la)
         hbox.addWidget(self.load_bt)
         dc_box.addLayout(hbox)
 
@@ -173,13 +197,10 @@ class MainWindow(QtWidgets.QWidget):
         g_box = QtWidgets.QVBoxLayout()
         g_box.addWidget(self.speed_form)
         g_box.addWidget(self.theta_form)
-
         box.addLayout(g_box)
 
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.set_time)
-
-    def start_time(self):
         self.timer.start(100)
 
     def set_time(self):
@@ -187,7 +208,11 @@ class MainWindow(QtWidgets.QWidget):
         self.speed_form.upDateGraphic(self.dc_motor.wt)
         self.theta_form.upDateGraphic(self.dc_motor.thetat)
 
-    def set_voltage(self,value):
+    def load_text_value(self,value):
+        self.text_value_la.setText(str(value))
+
+    def set_voltage(self):
+        value = self.voltage_slider.value()
         self.dc_motor.setVoltage(value)
 
 if __name__ == '__main__':
