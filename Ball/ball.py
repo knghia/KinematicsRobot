@@ -102,8 +102,6 @@ class BallGlWidget(QGLWidget):
         glVertex2f(-200,0)
         glEnd()
 
-        
-
     def resizeGL(self, w, h):
         glViewport(0, 0, w, h)
         glMatrixMode(GL_PROJECTION)
