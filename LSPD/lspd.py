@@ -51,6 +51,7 @@ class LSPB:
         if (((self.t >= self.tf) or (self.t == 0)) and (self.finish == True)):
             self.q0 = kwargs['start']
             self.qf = kwargs['end']
+            self.Vo = kwargs['Vo']
 
             if self.qf - self.q0 >= 0:
                 self.V = self.Vo
@@ -104,6 +105,8 @@ class MainWindow(QtWidgets.QWidget):
     def __init__(self, *args, **kwargs):
         super(MainWindow, self).__init__()
 
+        self.setWindowTitle("LSPD")
+
         self.start_point = ParameterForm(name="Start", value=0, unit=" ")
         self.end_point = ParameterForm(name="End", value=100, unit=" ")
         self.velocity = ParameterForm(name="V", value=30, unit=" ")
@@ -124,9 +127,7 @@ class MainWindow(QtWidgets.QWidget):
         box = QtWidgets.QHBoxLayout(self)
         box.addLayout(box_la)
         box.addWidget(self.graphics)
-
-        self.lspb = LSPB(V = self.velocity.get_value(),t = 0.01, alpha=self.alpha.get_value())
-
+        self.lspb = LSPB(V=self.velocity.get_value(), t=0.01, alpha=self.alpha.get_value())
         self.update_plot()
 
     def update_plot(self):
@@ -135,12 +136,14 @@ class MainWindow(QtWidgets.QWidget):
         time = []
         position = []
         while(1):
-            t, p = self.lspb.operation(start=self.start_point.get_value(), end= self.end_point.get_value())
+            t, p = self.lspb.operation(start=self.start_point.get_value(), end= self.end_point.get_value(), Vo=self.velocity.get_value())
             time.append(t)
             position.append(p)
             if (self.lspb.finish == True):
                 break
         self.graphics.axes.plot(np.array(position))
+        self.graphics.axes.set_xlim([0,1200])
+        self.graphics.axes.grid(True)
         self.graphics.draw()
 
 if __name__ == '__main__':
