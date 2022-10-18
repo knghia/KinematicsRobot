@@ -76,8 +76,8 @@ class GraphicWidget(QtWidgets.QGroupBox):
         self.plotWidget.setBackground((0x2E,0x31,0x38))
         self.plotWidget.setStyleSheet("border-radius: 10px;")
         
-        horizontalLayout = QtWidgets.QVBoxLayout(self)
-        horizontalLayout.addWidget(self.plotWidget)
+        box = QtWidgets.QVBoxLayout(self)
+        box.addWidget(self.plotWidget)
         self.plotWidget.setYRange(kwargs['min'],kwargs['max'])
         self.plotWidget.getPlotItem().hideAxis('bottom')
 
@@ -100,9 +100,6 @@ class GraphicWidget(QtWidgets.QGroupBox):
 
         self.signalDataArrays = np.roll(self.signalDataArrays, -1)
         self.signalDataArrays[-1] = data
-        self.updatePlot()
-    
-    def updatePlot(self):
         self.signalPlots.setData(self.timeArray, self.signalDataArrays)
         self.signalPlots.updateItems()
 
@@ -111,11 +108,11 @@ class InvalidValue(Exception):
         Exception.__init__(self, "Not real solution")
 
 h = 0.08
-d = 0.04
-l = 0.4
+d = 0.06
+l = 0.6
 k = 0.12
-xd = 0.4 - d
-yd = 0
+xd = l-d
+yd = -0.02
 
 mB = 0.029
 mb = 0.334
@@ -147,7 +144,7 @@ class DC_GlWidget(QGLWidget):
         self.xt0 = 0
         self.vt = 0
         self.vt0 = 0
-        self.alpha = self.theta_2_alpha(self.thetat)
+        self.alpha = 0
         self.part_alpha = 0
 
         # self.pid_alpha = PIDController(P=10, I=0, D=0, limit=2*np.pi)
@@ -165,16 +162,6 @@ class DC_GlWidget(QGLWidget):
 
     def func_thetat(self,t):
         return K*self.delta_U*((A2/x1)*np.exp(x1*t) + (A3/x2)*np.exp(x2*t) - (A2+A3)*t - (A2/x1 + A3/x2))
-
-    def theta_2_alpha(self, theta):
-        cos_theta = np.cos(theta)
-        sin_theta = np.sin(theta)
-        A = -2*(d*cos_theta+ xd)*l
-        B = -2*(yd + d*sin_theta- h)*l
-        C = k**2-(d*cos_theta+ xd)**2- (yd + d*sin_theta- h)**2- l**2
-        delta = B**2+(A+C)*(A-C)
-        t1 = (-B+np.sqrt(delta))/(-A-C)
-        return np.arctan(t1)*2
 
     def drawGL(self):
         self.wt = self.func_wt(self.t) + self.part_wt
@@ -196,9 +183,15 @@ class DC_GlWidget(QGLWidget):
         glVertex2f(0,0)
         glEnd()
 
-        self.alpha = self.theta_2_alpha(self.thetat)
         cos_theta = np.cos(self.thetat)
         sin_theta = np.sin(self.thetat)
+        A = -2*(d*cos_theta+ xd)*l
+        B = -2*(yd + d*sin_theta- h)*l
+        C = k**2-(d*cos_theta+ xd)**2- (yd + d*sin_theta- h)**2- l**2
+        delta = B**2+(A+C)*(A-C)
+        t1 = (-B+np.sqrt(delta))/(-A-C)
+        self.alpha = np.arctan(t1)*2
+
         cos_alpha = np.cos(self.alpha)
         sin_alpha = np.sin(self.alpha)
 
@@ -262,7 +255,7 @@ class MainWindow(QtWidgets.QWidget):
         alpha_la = QtWidgets.QLabel(self)
         alpha_la.setText("Theta")
         self.alpha_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.alpha_slider.setRange(-10,10)
+        self.alpha_slider.setRange(-5,5)
         self.alpha_slider.setValue(0)
         self.alpha_slider.valueChanged.connect(self.load_text_value)
         self.text_value_la.setText(str(self.alpha_slider.value()))

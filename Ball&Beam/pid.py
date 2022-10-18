@@ -76,8 +76,9 @@ class GraphicWidget(QtWidgets.QGroupBox):
         self.plotWidget.setBackground((0x2E,0x31,0x38))
         self.plotWidget.setStyleSheet("border-radius: 10px;")
         
-        horizontalLayout = QtWidgets.QVBoxLayout(self)
-        horizontalLayout.addWidget(self.plotWidget)
+        box = QtWidgets.QVBoxLayout(self)
+        box.addWidget(self.plotWidget)
+        
         self.plotWidget.setYRange(kwargs['min'],kwargs['max'])
         self.plotWidget.getPlotItem().hideAxis('bottom')
 
@@ -100,9 +101,6 @@ class GraphicWidget(QtWidgets.QGroupBox):
 
         self.signalDataArrays = np.roll(self.signalDataArrays, -1)
         self.signalDataArrays[-1] = data
-        self.updatePlot()
-    
-    def updatePlot(self):
         self.signalPlots.setData(self.timeArray, self.signalDataArrays)
         self.signalPlots.updateItems()
 

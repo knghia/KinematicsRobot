@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*- 
-
-from math import ldexp
 import sys
 import numpy as np
 import pyqtgraph as pg
@@ -80,11 +78,11 @@ class InvalidValue(Exception):
         Exception.__init__(self, "Not real solution")
 
 h = 0.08
-h1 = 0.0
+d = 0.06
 l = 0.4
-d = 0.04
-k = 0.08
+k = 0.12
 xd = 0.4 - d
+yd = 0
 
 class DC_GlWidget(QGLWidget):
     def __init__(self, parent):
@@ -114,8 +112,8 @@ class DC_GlWidget(QGLWidget):
         sin_alpha = np.sin(self.alpha)
 
         A = 2*(xd - l*cos_alpha)*d
-        B = 2*(h1 - h - l*sin_alpha)*d
-        C = k**2-(xd - l*cos_alpha)**2- (h1 - h - l*sin_alpha)**2- d**2
+        B = 2*(yd - h - l*sin_alpha)*d
+        C = k**2-(xd - l*cos_alpha)**2- (yd - h - l*sin_alpha)**2- d**2
         
         delta = B**2+(A+C)*(A-C)
         t1 = (-B-np.sqrt(delta))/(-A-C)
@@ -130,10 +128,10 @@ class DC_GlWidget(QGLWidget):
         glVertex2f(l*cos_alpha,h+l*sin_alpha)
         # BC
         glVertex2f(l*cos_alpha,h+l*sin_alpha)
-        glVertex2f(xd+d*cos_theta,h1+d*sin_theta)
+        glVertex2f(xd+d*cos_theta,yd+d*sin_theta)
         # CD
-        glVertex2f(xd+d*cos_theta,h1+d*sin_theta)
-        glVertex2f(xd,h1)
+        glVertex2f(xd+d*cos_theta,yd+d*sin_theta)
+        glVertex2f(xd,yd)
         glEnd()
 
         glPopMatrix()

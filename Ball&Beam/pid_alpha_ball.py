@@ -24,21 +24,20 @@ class PIDController:
     def get_output(self, error):
         p = self.P*error
         self.i += self.I*error
-
-        if (self.i < -self.limit):
-            self.i = -self.limit
-        if (self.i > self.limit):
-            self.i = self.limit
-
         d = self.D*(error-self.part_error)
 
-        output = p+d+self.i
-        
-        if (output < -self.limit):
-            output = -self.limit
-        if (output > self.limit):
-            output = self.limit
-
+        if self.limit != None:
+            if (self.i < -self.limit):
+                self.i = -self.limit
+            if (self.i > self.limit):
+                self.i = self.limit
+            output = p+d+self.i
+            if (output < -self.limit):
+                output = -self.limit
+            if (output > self.limit):
+                output = self.limit
+        else:
+            output = p+d+self.i
         self.part_error = error
         return output
         
@@ -67,6 +66,9 @@ class GraphicWidget(QtWidgets.QGroupBox):
         super(GraphicWidget, self).__init__()
         self.setFixedSize(400,200)
 
+        self.y_max = kwargs['max']
+        self.y_min = kwargs['min']
+
         self.numberOfSamples = 1000
         pg.setConfigOptions(antialias=True)
         self.plotWidget = pg.PlotWidget()
@@ -76,9 +78,13 @@ class GraphicWidget(QtWidgets.QGroupBox):
         self.plotWidget.setBackground((0x2E,0x31,0x38))
         self.plotWidget.setStyleSheet("border-radius: 10px;")
         
-        horizontalLayout = QtWidgets.QVBoxLayout(self)
-        horizontalLayout.addWidget(self.plotWidget)
-        self.plotWidget.setYRange(kwargs['min'],kwargs['max'])
+        self.value_la = QtWidgets.QLabel(self)
+
+        box = QtWidgets.QVBoxLayout(self)
+        box.addWidget(self.plotWidget)
+        box.addWidget(self.value_la)
+
+        self.plotWidget.setYRange(self.y_min, self.y_max)
         self.plotWidget.getPlotItem().hideAxis('bottom')
 
         self.plotWidget.addLegend()
@@ -98,8 +104,14 @@ class GraphicWidget(QtWidgets.QGroupBox):
         if data == None:
             return
 
+        if (data > self.y_max):
+            self.y_max += data
+        if (data < self.y_min):
+            self.y_min += data
+        self.plotWidget.setYRange(self.y_min, self.y_max)
         self.signalDataArrays = np.roll(self.signalDataArrays, -1)
         self.signalDataArrays[-1] = data
+        self.value_la.setText("{:.3}".format(data))
         self.updatePlot()
     
     def updatePlot(self):
@@ -111,11 +123,11 @@ class InvalidValue(Exception):
         Exception.__init__(self, "Not real solution")
 
 h = 0.08
-d = 0.04
-l = 0.4
-k = 0.12
-xd = 0.4 - d
-yd = 0
+d = 0.08
+l = 0.6
+k = 0.16
+xd = l-d
+yd = -0.02
 
 mB = 0.029
 mb = 0.334
@@ -140,19 +152,25 @@ class DC_GlWidget(QGLWidget):
         self.part_thetat = self.thetat
 
         self.t = 0
-
         self.ts = 0
         self.tb = 0
+
         self.xt = 0
         self.xt0 = 0
+
         self.vt = 0
         self.vt0 = 0
+  
         self.alpha = 0
         self.part_alpha = 0
 
-        # self.pid_alpha = PIDController(P=10, I=0, D=0, limit=2*np.pi)
-        self.pid_alpha = PIDController(P=20, I=0, D=0, limit=74)
+        self.pid_x = PIDController(P=6*np.pi/180, I= 0.001, D=0.001, limit=5*np.pi/180)
+        self.pid_alpha = PIDController(P=100, I=0, D=0, limit=74)
         self.pid_w = PIDController(P=0.2, I=0.8, D=0, limit=24)
+
+        self.i = 0
+        self.alpha_sp = 0
+        self.wt_sp = 0
 
     def paintGL(self):
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -166,21 +184,10 @@ class DC_GlWidget(QGLWidget):
     def func_thetat(self,t):
         return K*self.delta_U*((A2/x1)*np.exp(x1*t) + (A3/x2)*np.exp(x2*t) - (A2+A3)*t - (A2/x1 + A3/x2))
 
-    def theta_2_alpha(self, theta):
-        cos_theta = np.cos(theta)
-        sin_theta = np.sin(theta)
-        A = -2*(d*cos_theta+ xd)*l
-        B = -2*(yd + d*sin_theta- h)*l
-        C = k**2-(d*cos_theta+ xd)**2- (yd + d*sin_theta- h)**2- l**2
-        delta = B**2+(A+C)*(A-C)
-        t1 = (-B+np.sqrt(delta))/(-A-C)
-        return np.arctan(t1)*2
-
     def drawGL(self):
         self.wt = self.func_wt(self.t) + self.part_wt
-        self.thetat =  self.func_thetat(self.t)+ self.part_wt*(self.t)
-        self.thetat = self.thetat + self.part_thetat
-    
+        self.thetat =  self.func_thetat(self.t)+ self.part_wt*(self.t) + self.part_thetat
+
         self.setupColor([0xE6, 0x3E, 0x31])
         # H
         glLineWidth(2)
@@ -189,9 +196,15 @@ class DC_GlWidget(QGLWidget):
         glVertex2f(0,0)
         glEnd()
 
-        self.alpha = self.theta_2_alpha(self.thetat)
         cos_theta = np.cos(self.thetat)
         sin_theta = np.sin(self.thetat)
+        A = -2*(d*cos_theta+ xd)*l
+        B = -2*(yd + d*sin_theta- h)*l
+        C = k**2-(d*cos_theta+ xd)**2- (yd + d*sin_theta- h)**2- l**2
+        delta = B**2+(A+C)*(A-C)
+        t1 = (-B+np.sqrt(delta))/(-A-C)
+        self.alpha = np.arctan(t1)*2
+
         cos_alpha = np.cos(self.alpha)
         sin_alpha = np.sin(self.alpha)
 
@@ -208,24 +221,24 @@ class DC_GlWidget(QGLWidget):
         glEnd()
 
         k1 = mb*g*self.alpha/(mb+ JB/(rB**2))
-        self.xt = k1*((self.t-self.tb)**2)/2 +self.vt0*(self.t-self.tb)+ self.xt0 
-        self.vt = k1*(self.t-self.tb) + self.vt0
+        self.xt = k1*(self.t**2)/2 + self.vt0*self.t + self.xt0 
+        self.vt = k1*self.t + self.vt0
 
-        if self.xt >= l:
-            self.tb = self.t
-            self.xt = l
-            self.xt0 = l
-            self.vt0 = 0
+        # if self.xt >= l:
+        #     self.tb = self.t
+        #     self.xt = l
+        #     self.xt0 = l
+        #     self.vt0 = 0
 
-        if self.xt <= 0:
-            self.tb = self.t
-            self.xt = 0
-            self.xt0 = 0
-            self.vt0 = 0
+        # if self.xt <= 0:
+        #     self.tb = self.t
+        #     self.xt = 0
+        #     self.xt0 = 0
+        #     self.vt0 = 0
 
         xB = (l-self.xt)*cos_alpha
         yB = h+(l-self.xt)*sin_alpha
-        self.draw_circle(xB,yB,rB*2)
+        self.draw_circle(xB,yB,rB*4)
 
         if (self.U - self.part_U) != 0:
             self.delta_U = self.U - self.part_U
@@ -234,7 +247,6 @@ class DC_GlWidget(QGLWidget):
             self.part_U = self.U
             self.t = 0
 
-            self.tb = self.t
             self.xt0 = self.xt
             self.vt0 = self.vt
 
@@ -270,10 +282,15 @@ class DC_GlWidget(QGLWidget):
         glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, color)
 
     def upload_dc_motor(self, sp):
+        
         self.t += 0.01
-        wt_sp = self.pid_alpha.get_output(sp-self.alpha)
-        self.U = self.pid_w.get_output(wt_sp - self.wt)
         self.updateGL()
+        self.i +=1
+        if self.i == 10:
+            self.i = 0
+            self.alpha_sp = self.pid_x.get_output(sp-self.xt)
+            self.wt_sp = self.pid_alpha.get_output(self.alpha_sp-self.alpha)
+        self.U = self.pid_w.get_output(self.wt_sp - self.wt)
         
 class MainWindow(QtWidgets.QWidget):
     
@@ -294,8 +311,8 @@ class MainWindow(QtWidgets.QWidget):
         self.load_bt = QtWidgets.QPushButton(text="LOAD")
         self.load_bt.clicked.connect(self.start_time)
 
-        self.speed_form = GraphicWidget(name="alpha",min= -10, max= 10)
-        self.theta_form = GraphicWidget(name="xt",min= -l, max= l)
+        self.theta_form = GraphicWidget(name="alpha_sp",min= -l, max= l)
+        self.speed_form = GraphicWidget(name="xt",min= -l, max= l)
 
         box = QtWidgets.QHBoxLayout(self)
 
@@ -322,10 +339,9 @@ class MainWindow(QtWidgets.QWidget):
         self.timer.start(10)
 
     def time_handle(self):
-        alpha_sp = self.alpha_slider.value()*np.pi/180
-        self.dc_motor.upload_dc_motor(alpha_sp)
-        self.theta_form.upDateGraphic(self.dc_motor.xt)
-        self.speed_form.upDateGraphic(self.dc_motor.alpha*180/np.pi)
+        self.dc_motor.upload_dc_motor(l/2)
+        self.theta_form.upDateGraphic(self.dc_motor.alpha_sp)
+        self.speed_form.upDateGraphic(self.dc_motor.xt)
 
     def load_text_value(self,value):
         self.text_value_la.setText(str(value))

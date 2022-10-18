@@ -186,7 +186,7 @@ class MainWindow(QtWidgets.QWidget):
         self.text_theta_la = QtWidgets.QLabel(self)
         self.theta_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.theta_slider.setRange(-180,180)
-        self.theta_slider.setValue(0)
+        self.theta_slider.setValue(-40)
         self.text_theta_la.setText(str(self.theta_slider.value()))
         self.theta_slider.valueChanged.connect(self.load_text_value)
 
