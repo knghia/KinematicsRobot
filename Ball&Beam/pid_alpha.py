@@ -150,7 +150,9 @@ class DC_GlWidget(QGLWidget):
         self.alpha = self.theta_2_alpha(self.thetat)
         self.part_alpha = 0
 
-        self.pid_1 = PIDController(P= 2, I= 1, D= 0.0, limit= 24)
+        # self.pid_alpha = PIDController(P=10, I=0, D=0, limit=2*np.pi)
+        self.pid_alpha = PIDController(P=20, I=0, D=0, limit=74)
+        self.pid_w = PIDController(P=0.2, I=0.8, D=0, limit=24)
 
     def paintGL(self):
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -194,10 +196,9 @@ class DC_GlWidget(QGLWidget):
         glVertex2f(0,0)
         glEnd()
 
+        self.alpha = self.theta_2_alpha(self.thetat)
         cos_theta = np.cos(self.thetat)
         sin_theta = np.sin(self.thetat)
-        self.alpha = self.theta_2_alpha(self.thetat)
-
         cos_alpha = np.cos(self.alpha)
         sin_alpha = np.sin(self.alpha)
 
@@ -212,8 +213,6 @@ class DC_GlWidget(QGLWidget):
         glVertex2f(xd+ d*cos_theta, yd+ d*sin_theta)
         glVertex2f(xd, yd)
         glEnd()
-
-        self.U = self.pid_1.get_output(0 - self.alpha)
 
     def resizeGL(self, w, h):
         glViewport(0, 0, w, h)
@@ -246,36 +245,41 @@ class DC_GlWidget(QGLWidget):
         color[2] = color[2]/255
         glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, color)
 
-    def set_time(self):
+    def upload_dc_motor(self, sp):
         self.t += 0.01
+        wt_sp = self.pid_alpha.get_output(sp-self.alpha)
+        self.U = self.pid_w.get_output(wt_sp - self.wt)
         self.updateGL()
         
 class MainWindow(QtWidgets.QWidget):
-
+    
     def __init__(self, *args, **kwargs):
         super(MainWindow, self).__init__()
-        self.setWindowTitle("Ball and Beam")
+        self.setWindowTitle("DC Motor")
         self.dc_motor = DC_GlWidget(self)
         
         self.text_value_la = QtWidgets.QLabel(self)
-        self.voltage_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.voltage_slider.setRange(-24,24)
-        self.voltage_slider.setValue(1)
-        self.text_value_la.setText(str(self.voltage_slider.value()))
-        # self.voltage_slider.valueChanged.connect(self.load_text_value)
+        alpha_la = QtWidgets.QLabel(self)
+        alpha_la.setText("Theta")
+        self.alpha_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.alpha_slider.setRange(-10,10)
+        self.alpha_slider.setValue(0)
+        self.alpha_slider.valueChanged.connect(self.load_text_value)
+        self.text_value_la.setText(str(self.alpha_slider.value()))
 
         self.load_bt = QtWidgets.QPushButton(text="LOAD")
-        self.load_bt.clicked.connect(self.set_voltage)
+        self.load_bt.clicked.connect(self.start_time)
 
-        self.vt_form = GraphicWidget(name="v(t)",min= -24, max= 24)
-        self.alpha_form = GraphicWidget(name="alpha(t)",min= -0.2, max= 0.2)
+        self.speed_form = GraphicWidget(name="alpha",min= -10, max= 10)
+        self.theta_form = GraphicWidget(name="Theta",min= -360, max= 360)
 
         box = QtWidgets.QHBoxLayout(self)
 
         dc_box = QtWidgets.QVBoxLayout()
         dc_box.addWidget(self.dc_motor)
         hbox = QtWidgets.QHBoxLayout()
-        hbox.addWidget(self.voltage_slider)
+        hbox.addWidget(alpha_la)
+        hbox.addWidget(self.alpha_slider)
         hbox.addWidget(self.text_value_la)
         hbox.addWidget(self.load_bt)
         dc_box.addLayout(hbox)
@@ -283,23 +287,24 @@ class MainWindow(QtWidgets.QWidget):
         box.addLayout(dc_box)
 
         g_box = QtWidgets.QVBoxLayout()
-        g_box.addWidget(self.vt_form)
-        g_box.addWidget(self.alpha_form)
+        g_box.addWidget(self.speed_form)
+        g_box.addWidget(self.theta_form)
         box.addLayout(g_box)
 
         self.timer = QtCore.QTimer(self)
-        self.timer.timeout.connect(self.set_time)
+        self.timer.timeout.connect(self.time_handle)
         
-    def set_time(self):
-        self.dc_motor.set_time()
-        # self.vt_form.upDateGraphic(self.dc_motor.U)
-        self.alpha_form.upDateGraphic(self.dc_motor.alpha)
+    def start_time(self):
+        self.timer.start(10)
+
+    def time_handle(self):
+        alpha_sp = self.alpha_slider.value()*np.pi/180
+        self.dc_motor.upload_dc_motor(alpha_sp)
+        self.theta_form.upDateGraphic(self.dc_motor.thetat*180/np.pi)
+        self.speed_form.upDateGraphic(self.dc_motor.alpha*180/np.pi)
 
     def load_text_value(self,value):
         self.text_value_la.setText(str(value))
-
-    def set_voltage(self):
-        self.timer.start(10)
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
