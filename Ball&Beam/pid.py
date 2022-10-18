@@ -11,12 +11,44 @@ from OpenGL.GLU import *
 from OpenGL.GLUT import *
 from PyQt5.QtOpenGL import *
 
+class PIDController:
+    def __init__(self, *args, **kwargs):
+        self.P = kwargs["P"]
+        self.I = kwargs["I"]
+        self.D = kwargs["D"]
+        self.limit = kwargs["limit"]
+        self.part_error = 0
+
+        self.i = 0
+
+    def get_output(self, error):
+        p = self.P*error
+        self.i += self.I*error
+
+        if (self.i < -self.limit):
+            self.i = -self.limit
+        if (self.i > self.limit):
+            self.i = self.limit
+
+        d = self.D*(error-self.part_error)
+
+        output = p+d+self.i
+        
+        if (output < -self.limit):
+            output = -self.limit
+        if (output > self.limit):
+            output = self.limit
+
+        self.part_error = error
+        return output
+        
 Ra = 2
 La = 0.23
 Jm = 0.000052
 Bm = 0.01
 Kt = 0.235
 Ke = 0.235
+Kg = 0.01
 
 a = 1
 b = (Jm*Ra + La*Bm)/(La*Jm)
@@ -89,7 +121,7 @@ mB = 0.029
 mb = 0.334
 rB = 0.0095
 JB = (2/5)*mB*rB**2
-Jb = (1/3)*mb*l**2
+Jb = (1/3)*mB*l**2
 g = 9.8
 
 class DC_GlWidget(QGLWidget):
@@ -108,6 +140,8 @@ class DC_GlWidget(QGLWidget):
         self.part_thetat = self.thetat
 
         self.t = 0
+
+        self.ts = 0
         self.tb = 0
         self.xt = 0
         self.xt0 = 0
@@ -115,6 +149,9 @@ class DC_GlWidget(QGLWidget):
         self.vt0 = 0
         self.alpha = 0
         self.part_alpha = 0
+
+        self.pid_1 = PIDController(P= 1, I= 0.0, D= 0.0, limit= 10*np.pi/180)
+        self.pid_2 = PIDController(P= 1, I= 2, D=0.0, limit= 24)
 
     def paintGL(self):
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -128,23 +165,21 @@ class DC_GlWidget(QGLWidget):
     def func_thetat(self,t):
         return K*self.delta_U*((A2/x1)*np.exp(x1*t) + (A3/x2)*np.exp(x2*t) - (A2+A3)*t - (A2/x1 + A3/x2))
 
-    def drawGL(self):  
+    def drawGL(self):
+
+        self.wt = self.func_wt(self.t- self.ts) + self.part_wt
+
+        self.thetat =  self.func_thetat(self.t- self.ts)+ self.part_wt*(self.t- self.ts)
+        self.thetat = self.thetat
+        self.thetat = self.thetat + self.part_thetat
 
         if self.U - self.part_U != 0:
             self.delta_U = self.U - self.part_U
             self.part_wt = self.wt
             self.part_thetat = self.thetat
             self.part_U = self.U
-            self.t = 0
+            self.ts = self.t
             
-            self.part_alpha = self.alpha
-            self.tb = self.t
-            self.xt0 = self.xt
-            self.vt0 = self.vt
-
-        self.wt = self.func_wt(self.t) + self.part_wt
-        self.thetat =  self.func_thetat(self.t)+ self.part_wt*self.t
-        self.thetat = self.thetat + self.part_thetat
         self.setupColor([0xE6, 0x3E, 0x31])
         # H
         glLineWidth(2)
@@ -161,7 +196,6 @@ class DC_GlWidget(QGLWidget):
         C = k**2-(d*cos_theta+ xd)**2- (h1 + d*sin_theta- h)**2- l**2
         delta = B**2+(A+C)*(A-C)
         t1 = (-B+np.sqrt(delta))/(-A-C)
-        # t2 = (-B-np.sqrt(delta))/(-A-C)
         self.alpha = np.arctan(t1)*2
 
         cos_alpha = np.cos(self.alpha)
@@ -204,6 +238,11 @@ class DC_GlWidget(QGLWidget):
         yB = h+(l-self.xt)*sin_alpha
         self.draw_circle(xB,yB,rB)
 
+        alpha_sp = self.pid_1.get_output(0.2 - self.xt)
+        self.U = self.pid_2.get_output(alpha_sp - self.alpha)
+
+        print(self.U, alpha_sp)
+
     def resizeGL(self, w, h):
         glViewport(0, 0, w, h)
         glMatrixMode(GL_PROJECTION)
@@ -239,10 +278,6 @@ class DC_GlWidget(QGLWidget):
     def set_time(self):
         self.t += 0.01
         self.updateGL()
-
-    def setVoltage(self,value):
-        self.U = value
-        self.updateGL()
         
 class MainWindow(QtWidgets.QWidget):
 
@@ -256,7 +291,8 @@ class MainWindow(QtWidgets.QWidget):
         self.voltage_slider.setRange(-24,24)
         self.voltage_slider.setValue(1)
         self.text_value_la.setText(str(self.voltage_slider.value()))
-        self.voltage_slider.valueChanged.connect(self.load_text_value)
+        # self.voltage_slider.valueChanged.connect(self.load_text_value)
+
         self.load_bt = QtWidgets.QPushButton(text="LOAD")
         self.load_bt.clicked.connect(self.set_voltage)
 
@@ -282,7 +318,7 @@ class MainWindow(QtWidgets.QWidget):
 
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.set_time)
-        self.timer.start(10)
+        
 
     def set_time(self):
         self.dc_motor.set_time()
@@ -293,8 +329,9 @@ class MainWindow(QtWidgets.QWidget):
         self.text_value_la.setText(str(value))
 
     def set_voltage(self):
-        value = self.voltage_slider.value()
-        self.dc_motor.setVoltage(value)
+        self.timer.start(10)
+        # value = self.voltage_slider.value()
+        # self.dc_motor.setVoltage(value)
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)

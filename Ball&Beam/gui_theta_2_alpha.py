@@ -89,7 +89,7 @@ mB = 0.029
 mb = 0.334
 rB = 0.0095
 JB = (2/5)*mB*rB**2
-Jb = (1/3)*mb*l**2
+Jb = (1/3)*mB*l**2
 g = 9.8
 
 class DC_GlWidget(QGLWidget):
@@ -99,22 +99,21 @@ class DC_GlWidget(QGLWidget):
 
         self.U = 0
         self.part_U = 0
-        self.delta_U = 0
         
+        self.part_wt = 0
+        self.part_thetat = 0
+
+        self.U = 0
+        self.delta_U = 0
+        self.t = 0
         self.wt = self.func_wt(0)
         self.thetat = self.func_thetat(0)
-
-        self.part_wt = self.wt
-        self.part_thetat = self.thetat
-
-        self.t = 0
-        self.tb = 0
-        self.xt = 0
-        self.xt0 = 0
-        self.vt = 0
-        self.vt0 = 0
         self.alpha = 0
         self.part_alpha = 0
+
+        self.tb = 0
+        self.xt = 0
+        self.part_xt = 0
 
     def paintGL(self):
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -129,22 +128,18 @@ class DC_GlWidget(QGLWidget):
         return K*self.delta_U*((A2/x1)*np.exp(x1*t) + (A3/x2)*np.exp(x2*t) - (A2+A3)*t - (A2/x1 + A3/x2))
 
     def drawGL(self):  
-
+        glPushMatrix()
         if self.U - self.part_U != 0:
             self.delta_U = self.U - self.part_U
             self.part_wt = self.wt
             self.part_thetat = self.thetat
             self.part_U = self.U
             self.t = 0
-            
-            self.part_alpha = self.alpha
-            self.tb = self.t
-            self.xt0 = self.xt
-            self.vt0 = self.vt
-
+        
         self.wt = self.func_wt(self.t) + self.part_wt
         self.thetat =  self.func_thetat(self.t)+ self.part_wt*self.t
         self.thetat = self.thetat + self.part_thetat
+        
         self.setupColor([0xE6, 0x3E, 0x31])
         # H
         glLineWidth(2)
@@ -179,36 +174,28 @@ class DC_GlWidget(QGLWidget):
         glVertex2f(xd,h1)
         glEnd()
 
-        k1 = mb*g*self.alpha/(mb+ JB/(rB**2))
-        self.xt = k1*((self.t-self.tb)**2)/2 +self.vt0*(self.t-self.tb)+ self.xt0
-        self.vt = k1*(self.t-self.tb) + self.vt0
+        self.xt=(-mB*g/(mB+JB/(rB**2)))*(self.t-self.tb)*self.alpha
 
-        if self.part_alpha != self.alpha:
-            self.part_alpha = self.alpha
-            self.tb = self.t
-            self.xt0 = self.xt
-            self.vt0 = self.vt
+        if self.xt>l:
+            self.xt = l
+            self.tb=self.t
+        elif self.xt < 0:
+            self.xt = 0
+            self.tb=self.t
 
-        # if self.xt >= l:
-        #     self.tb = self.t
-        #     self.xt = l
-        #     self.xt0 = l
-        #     self.vt0 = 0
-        # if self.xt <= 0:
-        #     self.tb = self.t
-        #     self.xt = 0
-        #     self.xt0 = 0
-        #     self.vt0 = 0
+        # self.xt=(-mB*g/(mB+JB/(rB**2)))*self.t*self.alpha
             
-        xB = (l-self.xt)*cos_alpha
-        yB = h+(l-self.xt)*sin_alpha
+        xB = (self.xt)*cos_alpha
+        yB = h+(self.xt)*sin_alpha
+
         self.draw_circle(xB,yB,rB)
+        glPopMatrix()
 
     def resizeGL(self, w, h):
         glViewport(0, 0, w, h)
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
-        zoom = 1
+        zoom = 0.5
 
         glOrtho(-zoom, zoom, -zoom, zoom, -zoom, zoom)
         glMatrixMode(GL_MODELVIEW)
@@ -260,7 +247,7 @@ class MainWindow(QtWidgets.QWidget):
         self.load_bt = QtWidgets.QPushButton(text="LOAD")
         self.load_bt.clicked.connect(self.set_voltage)
 
-        self.vt_form = GraphicWidget(name="v(t)",min= -1, max= 1)
+        self.alpha_form = GraphicWidget(name="Alpha",min= -0.1, max= 0.1)
         self.xt_form = GraphicWidget(name="x(t)",min= -4, max= 4)
 
         box = QtWidgets.QHBoxLayout(self)
@@ -276,7 +263,7 @@ class MainWindow(QtWidgets.QWidget):
         box.addLayout(dc_box)
 
         g_box = QtWidgets.QVBoxLayout()
-        g_box.addWidget(self.vt_form)
+        g_box.addWidget(self.alpha_form)
         g_box.addWidget(self.xt_form)
         box.addLayout(g_box)
 
@@ -286,8 +273,11 @@ class MainWindow(QtWidgets.QWidget):
 
     def set_time(self):
         self.dc_motor.set_time()
-        self.vt_form.upDateGraphic(self.dc_motor.vt)
-        self.xt_form.upDateGraphic(self.dc_motor.xt)
+        alpha = self.dc_motor.alpha
+        xt = self.dc_motor.xt
+
+        self.alpha_form.upDateGraphic(alpha)
+        self.xt_form.upDateGraphic(xt)
 
     def load_text_value(self,value):
         self.text_value_la.setText(str(value))
