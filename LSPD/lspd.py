@@ -1,4 +1,5 @@
 
+from cProfile import label
 import sys
 from tracemalloc import start
 import numpy as np
@@ -71,7 +72,7 @@ class LSPB:
         else:
             self.t = 0
             self.finish = True
-            return self.t,self.get_data(self.tf)
+            return self.tf,self.get_data(self.tf)
 
 class ParameterForm(QtWidgets.QWidget):
     def __init__(self,*args,**kwargs):
@@ -109,7 +110,7 @@ class MainWindow(QtWidgets.QWidget):
 
         self.start_point = ParameterForm(name="Start", value=0, unit=" ")
         self.end_point = ParameterForm(name="End", value=100, unit=" ")
-        self.velocity = ParameterForm(name="V", value=30, unit=" ")
+        self.velocity = ParameterForm(name="V", value=32, unit=" ")
         self.alpha = ParameterForm(name="⍺", value=1.2, unit="1<=⍺<=2")
 
         self.load_bt = QtWidgets.QPushButton(text="LOAD")
@@ -135,14 +136,19 @@ class MainWindow(QtWidgets.QWidget):
         self.lspb.alpha = self.alpha.get_value()
         time = []
         position = []
+        velocity = []
         while(1):
             t, p = self.lspb.operation(start=self.start_point.get_value(), end= self.end_point.get_value(), Vo=self.velocity.get_value())
             time.append(t)
-            position.append(p)
+            position.append(p[0])
+            velocity.append(p[1])
             if (self.lspb.finish == True):
                 break
-        self.graphics.axes.plot(np.array(position))
-        self.graphics.axes.set_xlim([0,1200])
+        self.graphics.axes.plot(time, position, label="position")
+        self.graphics.axes.plot(time, velocity, label="velocity")
+        self.graphics.axes.legend()
+        
+        self.graphics.axes.set_xlim([0,100])
         self.graphics.axes.grid(True)
         self.graphics.draw()
 

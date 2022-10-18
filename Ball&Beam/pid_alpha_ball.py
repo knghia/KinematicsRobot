@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*- 
+
 import sys
 import numpy as np
 import pyqtgraph as pg
@@ -10,12 +11,44 @@ from OpenGL.GLU import *
 from OpenGL.GLUT import *
 from PyQt5.QtOpenGL import *
 
+class PIDController:
+    def __init__(self, *args, **kwargs):
+        self.P = kwargs["P"]
+        self.I = kwargs["I"]
+        self.D = kwargs["D"]
+        self.limit = kwargs["limit"]
+        self.part_error = 0
+
+        self.i = 0
+
+    def get_output(self, error):
+        p = self.P*error
+        self.i += self.I*error
+
+        if (self.i < -self.limit):
+            self.i = -self.limit
+        if (self.i > self.limit):
+            self.i = self.limit
+
+        d = self.D*(error-self.part_error)
+
+        output = p+d+self.i
+        
+        if (output < -self.limit):
+            output = -self.limit
+        if (output > self.limit):
+            output = self.limit
+
+        self.part_error = error
+        return output
+        
 Ra = 2
 La = 0.23
 Jm = 0.000052
 Bm = 0.01
 Kt = 0.235
 Ke = 0.235
+Kg = 0.01
 
 a = 1
 b = (Jm*Ra + La*Bm)/(La*Jm)
@@ -78,11 +111,11 @@ class InvalidValue(Exception):
         Exception.__init__(self, "Not real solution")
 
 h = 0.08
-h1 = 0.0
-l = 0.4
 d = 0.04
-k = 0.08
+l = 0.4
+k = 0.12
 xd = 0.4 - d
+yd = 0
 
 mB = 0.029
 mb = 0.334
@@ -96,19 +129,30 @@ class DC_GlWidget(QGLWidget):
         QGLWidget.__init__(self, parent)
         self.setMinimumSize(400, 400)
 
+        self.U = 0
+        self.part_U = 0
+        self.delta_U = 0
+        
+        self.wt = self.func_wt(0)
+        self.thetat = self.func_thetat(0)
+
+        self.part_wt = self.wt
+        self.part_thetat = self.thetat
+
         self.t = 0
 
+        self.ts = 0
         self.tb = 0
         self.xt = 0
         self.xt0 = 0
-
         self.vt = 0
         self.vt0 = 0
-
         self.alpha = 0
-        self.theta = 0
-
         self.part_alpha = 0
+
+        # self.pid_alpha = PIDController(P=10, I=0, D=0, limit=2*np.pi)
+        self.pid_alpha = PIDController(P=20, I=0, D=0, limit=74)
+        self.pid_w = PIDController(P=0.2, I=0.8, D=0, limit=24)
 
     def paintGL(self):
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -116,45 +160,52 @@ class DC_GlWidget(QGLWidget):
         self.drawGL()
         glPopMatrix()
 
-    def drawGL(self):  
+    def func_wt(self,t):
+        return K*self.delta_U*(A2*np.exp(x1*t) + A3*np.exp(x2*t) - (A2+A3))
+
+    def func_thetat(self,t):
+        return K*self.delta_U*((A2/x1)*np.exp(x1*t) + (A3/x2)*np.exp(x2*t) - (A2+A3)*t - (A2/x1 + A3/x2))
+
+    def theta_2_alpha(self, theta):
+        cos_theta = np.cos(theta)
+        sin_theta = np.sin(theta)
+        A = -2*(d*cos_theta+ xd)*l
+        B = -2*(yd + d*sin_theta- h)*l
+        C = k**2-(d*cos_theta+ xd)**2- (yd + d*sin_theta- h)**2- l**2
+        delta = B**2+(A+C)*(A-C)
+        t1 = (-B+np.sqrt(delta))/(-A-C)
+        return np.arctan(t1)*2
+
+    def drawGL(self):
+        self.wt = self.func_wt(self.t) + self.part_wt
+        self.thetat =  self.func_thetat(self.t)+ self.part_wt*(self.t)
+        self.thetat = self.thetat + self.part_thetat
+    
         self.setupColor([0xE6, 0x3E, 0x31])
+        # H
         glLineWidth(2)
         glBegin(GL_LINES)
         glVertex2f(0,h)
         glVertex2f(0,0)
         glEnd()
 
+        self.alpha = self.theta_2_alpha(self.thetat)
+        cos_theta = np.cos(self.thetat)
+        sin_theta = np.sin(self.thetat)
         cos_alpha = np.cos(self.alpha)
         sin_alpha = np.sin(self.alpha)
 
-        A = 2*(xd - l*cos_alpha)*d
-        B = 2*(h1 - h - l*sin_alpha)*d
-        C = k**2-(xd - l*cos_alpha)**2- (h1 - h - l*sin_alpha)**2- d**2
-        
-        delta = B**2+(A+C)*(A-C)
-        t1 = (-B-np.sqrt(delta))/(-A-C)
-        self.theta = np.arctan(t1)*2
-
-        cos_theta = np.cos(self.theta)
-        sin_theta = np.sin(self.theta)
-
         glBegin(GL_LINES)
         # HB
-        glVertex2f(0,h)
-        glVertex2f(l*cos_alpha,h+l*sin_alpha)
+        glVertex2f(0, h)
+        glVertex2f(l*cos_alpha, h+ l*sin_alpha)
         # BC
-        glVertex2f(l*cos_alpha,h+l*sin_alpha)
-        glVertex2f(xd+d*cos_theta,h1+d*sin_theta)
+        glVertex2f(l*cos_alpha, h+ l*sin_alpha)
+        glVertex2f(xd+ d*cos_theta, yd+ d*sin_theta)
         # CD
-        glVertex2f(xd+d*cos_theta,h1+d*sin_theta)
-        glVertex2f(xd,h1)
+        glVertex2f(xd+ d*cos_theta, yd+ d*sin_theta)
+        glVertex2f(xd, yd)
         glEnd()
-
-        if self.part_alpha != self.alpha:
-            self.part_alpha = self.alpha
-            self.tb = self.t
-            self.xt0 = self.xt
-            self.vt0 = self.vt
 
         k1 = mb*g*self.alpha/(mb+ JB/(rB**2))
         self.xt = k1*((self.t-self.tb)**2)/2 +self.vt0*(self.t-self.tb)+ self.xt0 
@@ -174,14 +225,24 @@ class DC_GlWidget(QGLWidget):
 
         xB = (l-self.xt)*cos_alpha
         yB = h+(l-self.xt)*sin_alpha
+        self.draw_circle(xB,yB,rB*2)
 
-        self.draw_circle(xB,yB,rB)
+        if (self.U - self.part_U) != 0:
+            self.delta_U = self.U - self.part_U
+            self.part_wt = self.wt
+            self.part_thetat = self.thetat
+            self.part_U = self.U
+            self.t = 0
+
+            self.tb = self.t
+            self.xt0 = self.xt
+            self.vt0 = self.vt
 
     def resizeGL(self, w, h):
         glViewport(0, 0, w, h)
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
-        zoom = 0.5
+        zoom = 1
         glOrtho(-zoom, zoom, -zoom, zoom, -zoom, zoom)
         glMatrixMode(GL_MODELVIEW)
 
@@ -193,86 +254,81 @@ class DC_GlWidget(QGLWidget):
         glEnable(GL_BLEND)
         glClearColor(187/255, 190/255, 191/255, 1.0)
 
+    def draw_circle(self,x,y,r):
+        sides = 32        
+        glBegin(GL_POLYGON)    
+        for i in range(100):    
+            cosine= r * np.cos(i*2*np.pi/sides) + x    
+            sine  = r * np.sin(i*2*np.pi/sides) + y    
+            glVertex2f(cosine,sine)
+        glEnd()
+        
     def setupColor(self, color):
         color[0] = color[0]/255
         color[1] = color[1]/255
         color[2] = color[2]/255
         glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, color)
 
-    def draw_circle(self,x,y,r):
-        sides = 32
-        glBegin(GL_POLYGON)
-        for i in range(100):    
-            cosine= r * np.cos(i*2*np.pi/sides) + x    
-            sine  = r * np.sin(i*2*np.pi/sides) + y    
-            glVertex2f(cosine,sine)
-        glEnd()
-
-    def set_time(self):
+    def upload_dc_motor(self, sp):
         self.t += 0.01
+        wt_sp = self.pid_alpha.get_output(sp-self.alpha)
+        self.U = self.pid_w.get_output(wt_sp - self.wt)
         self.updateGL()
-
-    def set_alpha(self,value):
-        self.alpha = value
-        self.updateGL()   
         
 class MainWindow(QtWidgets.QWidget):
-
+    
     def __init__(self, *args, **kwargs):
         super(MainWindow, self).__init__()
-        self.setWindowTitle("Ball and Beam")
+        self.setWindowTitle("DC Motor")
         self.dc_motor = DC_GlWidget(self)
         
-        self.text_alpha_la = QtWidgets.QLabel(self)
-
+        self.text_value_la = QtWidgets.QLabel(self)
+        alpha_la = QtWidgets.QLabel(self)
+        alpha_la.setText("Theta")
         self.alpha_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.alpha_slider.setRange(-40,40)
+        self.alpha_slider.setRange(-10,10)
         self.alpha_slider.setValue(0)
-        self.text_alpha_la.setText(str(self.alpha_slider.value()))
         self.alpha_slider.valueChanged.connect(self.load_text_value)
+        self.text_value_la.setText(str(self.alpha_slider.value()))
 
-        self.theta_la = QtWidgets.QLabel(self,text="Theta : 0")
-        self.load_alpha_bt = QtWidgets.QPushButton(text="LOAD THETA")
+        self.load_bt = QtWidgets.QPushButton(text="LOAD")
+        self.load_bt.clicked.connect(self.start_time)
 
-        self.vt_form = GraphicWidget(name="v(t)",min= -0.4, max= 0.4)
-        self.xt_form = GraphicWidget(name="x(t)",min= -l, max= l)
+        self.speed_form = GraphicWidget(name="alpha",min= -10, max= 10)
+        self.theta_form = GraphicWidget(name="xt",min= -l, max= l)
 
         box = QtWidgets.QHBoxLayout(self)
 
         dc_box = QtWidgets.QVBoxLayout()
         dc_box.addWidget(self.dc_motor)
-        dc_box.addWidget(self.theta_la)
-
         hbox = QtWidgets.QHBoxLayout()
+        hbox.addWidget(alpha_la)
         hbox.addWidget(self.alpha_slider)
-        hbox.addWidget(self.text_alpha_la)
-        hbox.addWidget(self.load_alpha_bt)
+        hbox.addWidget(self.text_value_la)
+        hbox.addWidget(self.load_bt)
         dc_box.addLayout(hbox)
 
         box.addLayout(dc_box)
 
         g_box = QtWidgets.QVBoxLayout()
-        g_box.addWidget(self.xt_form)
-        g_box.addWidget(self.vt_form)
+        g_box.addWidget(self.speed_form)
+        g_box.addWidget(self.theta_form)
         box.addLayout(g_box)
 
         self.timer = QtCore.QTimer(self)
-        self.timer.timeout.connect(self.set_time)
-        self.timer.start(10)
+        self.timer.timeout.connect(self.time_handle)
         
-    def set_time(self):
-        self.dc_motor.set_time()
-        self.xt_form.upDateGraphic(self.dc_motor.xt)
-        self.vt_form.upDateGraphic(self.dc_motor.vt)
+    def start_time(self):
+        self.timer.start(10)
+
+    def time_handle(self):
+        alpha_sp = self.alpha_slider.value()*np.pi/180
+        self.dc_motor.upload_dc_motor(alpha_sp)
+        self.theta_form.upDateGraphic(self.dc_motor.xt)
+        self.speed_form.upDateGraphic(self.dc_motor.alpha*180/np.pi)
 
     def load_text_value(self,value):
-        value = value/10
-        self.text_alpha_la.setText(str(value))
-
-        alpha = value*np.pi/180
-        self.dc_motor.set_alpha(alpha)
-        connect = 'Theta : {:.3}'.format(self.dc_motor.theta*180/np.pi, 3)
-        self.theta_la.setText(connect)
+        self.text_value_la.setText(str(value))
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)

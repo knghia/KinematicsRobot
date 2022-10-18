@@ -7,32 +7,36 @@ extern "C"{
 #endif
 #include <inttypes.h>
 #include <stdbool.h>
+
 class LSPB{
 
 private:
 	float t0, tf;
-	int16_t q0, qf;
+	float q0, qf;
 
-	float V,Vo;
+	float V;
 	float tb = 0;
 
 	float t;
 	float index;
 	float position;
-	float velocity;
 	bool finished = false;
+	float Vo;
+	float alpha;
 
 public:
-	LSPB(float _V, float _t);
-	void operator()(int16_t sp);
+	LSPB(float _Vo, float _t, float _alpha);
+	void operator()(float _sp);
+	void operator()(float _qf, float _q0);
+
 	void get_value(float _t);
 	float get_position(void);
-	float get_velocity(void);
-	bool is_finish();
+	bool is_finished();
+
+	void set_Vo_alpha(float v, float a);
 };
 
 #ifdef __cplusplus
 }
 #endif
 #endif
-
