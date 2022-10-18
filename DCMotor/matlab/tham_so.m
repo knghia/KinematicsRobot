@@ -14,3 +14,6 @@ c = (Ke*Kt + Ra*Bm)/(La*Jm);
 delta = b^2 - 4*a*c;
 x1 = (-b+sqrt(delta))/(2*a);
 x2 = (-b-sqrt(delta))/(2*a);
+
+m_bar = 0;
+g = 9.8

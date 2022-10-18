@@ -11,6 +11,30 @@ from OpenGL.GLU import *
 from OpenGL.GLUT import *
 from PyQt5.QtOpenGL import *
 
+class PIDController:
+    def __init__(self, *args, **kwargs):
+        self.P = kwargs["P"]
+        self.I = kwargs["I"]
+        self.D = kwargs["D"]
+        self.limit = kwargs["limit"]
+        self.part_error = 0
+        self.i = 0
+
+    def get_output(self, error):
+        p = self.P*error
+        self.i += self.I*error
+        if (self.i < -self.limit):
+            self.i = -self.limit
+        if (self.i > self.limit):
+            self.i = self.limit
+        d = self.D*(error-self.part_error)
+        output = p+d+self.i
+        if (output < -self.limit):
+            output = -self.limit
+        if (output > self.limit):
+            output = self.limit
+        return output
+
 Ra = 2
 La = 0.23
 Jm = 0.000052
@@ -73,8 +97,7 @@ class GraphicWidget(QtWidgets.QGroupBox):
         self.signalDataArrays[-1] = data
         self.signalPlots.setData(self.timeArray, self.signalDataArrays)
         self.signalPlots.updateItems()
-
-        self.value_la.setText(str(data))
+        self.value_la.setText("{}".format(round(data,3)))
 
 class InvalidValue(Exception):
     def __init__(self):
@@ -96,6 +119,10 @@ class DC_GlWidget(QGLWidget):
         self.t = 0
         self.wt = self.func_wt(0)
         self.thetat = self.func_thetat(0)
+        self.pid_theta = PIDController(P=1, I=0, D=0, limit=74)
+        self.pid_w = PIDController(P=0.1, I=0.5, D=0, limit=24)
+
+        self.error = 0
 
     def paintGL(self):
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -113,7 +140,7 @@ class DC_GlWidget(QGLWidget):
         self.wt = self.func_wt(self.t) + self.part_wt
         self.thetat =  self.func_thetat(self.t)+ self.part_wt*self.t
         self.thetat = self.thetat + self.part_thetat
-        
+
         if self.U - self.part_U != 0:
             self.delta_U = self.U - self.part_U
             self.part_wt = self.wt
@@ -152,38 +179,42 @@ class DC_GlWidget(QGLWidget):
         color[2] = color[2]/255
         glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, color)
 
-    def set_time(self):
+    def upload_dc_motor(self, sp):
         self.t += 0.01
-        self.updateGL()
+        wt_sp = self.pid_theta.get_output(sp - self.thetat)
+        self.U = self.pid_w.get_output(wt_sp - self.wt)
 
-    def setVoltage(self,value):
-        self.U = value
         self.updateGL()
         
 class MainWindow(QtWidgets.QWidget):
 
     def __init__(self, *args, **kwargs):
         super(MainWindow, self).__init__()
+        self.setWindowTitle("DC Motor")
         self.dc_motor = DC_GlWidget(self)
         
         self.text_value_la = QtWidgets.QLabel(self)
-        self.text_value_la.setText("12")
-        self.voltage_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.voltage_slider.setRange(-24,24)
-        self.voltage_slider.setValue(12)
-        self.voltage_slider.valueChanged.connect(self.load_text_value)
-        self.load_bt = QtWidgets.QPushButton(text="LOAD")
-        self.load_bt.clicked.connect(self.set_voltage)
+        theta_la = QtWidgets.QLabel(self)
+        theta_la.setText("Theta")
+        self.theta_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.theta_slider.setRange(-360,360)
+        self.theta_slider.setValue(0)
+        self.theta_slider.valueChanged.connect(self.load_text_value)
+        self.text_value_la.setText(str(self.theta_slider.value()))
 
-        self.speed_form = GraphicWidget(name="Speed",min= -80, max= 80)
-        self.theta_form = GraphicWidget(name="Theta",min= -200, max= 200)
+        self.load_bt = QtWidgets.QPushButton(text="LOAD")
+        self.load_bt.clicked.connect(self.start_time)
+
+        self.speed_form = GraphicWidget(name="Error",min= -1, max= 1)
+        self.theta_form = GraphicWidget(name="U",min= -50, max= 50)
 
         box = QtWidgets.QHBoxLayout(self)
 
         dc_box = QtWidgets.QVBoxLayout()
         dc_box.addWidget(self.dc_motor)
         hbox = QtWidgets.QHBoxLayout()
-        hbox.addWidget(self.voltage_slider)
+        hbox.addWidget(theta_la)
+        hbox.addWidget(self.theta_slider)
         hbox.addWidget(self.text_value_la)
         hbox.addWidget(self.load_bt)
         dc_box.addLayout(hbox)
@@ -196,20 +227,19 @@ class MainWindow(QtWidgets.QWidget):
         box.addLayout(g_box)
 
         self.timer = QtCore.QTimer(self)
-        self.timer.timeout.connect(self.set_time)
+        self.timer.timeout.connect(self.time_handle)
+        
+    def start_time(self):
         self.timer.start(10)
 
-    def set_time(self):
-        self.dc_motor.set_time()
-        self.speed_form.upDateGraphic(self.dc_motor.wt)
-        self.theta_form.upDateGraphic(self.dc_motor.thetat)
+    def time_handle(self):
+        theta_sp = self.theta_slider.value()*np.pi/180
+        self.dc_motor.upload_dc_motor(theta_sp)
+        self.theta_form.upDateGraphic(self.dc_motor.thetat*180/np.pi)
+        # self.theta_form.upDateGraphic(self.dc_motor.s)
 
     def load_text_value(self,value):
         self.text_value_la.setText(str(value))
-
-    def set_voltage(self):
-        value = self.voltage_slider.value()
-        self.dc_motor.setVoltage(value)
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
