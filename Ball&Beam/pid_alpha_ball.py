@@ -123,11 +123,11 @@ class InvalidValue(Exception):
         Exception.__init__(self, "Not real solution")
 
 h = 0.08
-d = 0.08
-l = 0.6
-k = 0.16
-xd = l-d
-yd = -0.02
+l = 0.4
+d = 0.04
+k = 0.08
+xd = 0.4 - d
+yd = 0.0
 
 mB = 0.029
 mb = 0.334
@@ -164,8 +164,8 @@ class DC_GlWidget(QGLWidget):
         self.alpha = 0
         self.part_alpha = 0
 
-        self.pid_x = PIDController(P=6*np.pi/180, I= 0.001, D=0.001, limit=5*np.pi/180)
-        self.pid_alpha = PIDController(P=100, I=0, D=0, limit=74)
+        self.pid_x = PIDController(P=0.5, I= 0, D= 0, limit=8*np.pi/180)
+        self.pid_alpha = PIDController(P=30, I=0, D=0, limit=74)
         self.pid_w = PIDController(P=0.2, I=0.8, D=0, limit=24)
 
         self.i = 0
@@ -224,18 +224,6 @@ class DC_GlWidget(QGLWidget):
         self.xt = k1*(self.t**2)/2 + self.vt0*self.t + self.xt0 
         self.vt = k1*self.t + self.vt0
 
-        # if self.xt >= l:
-        #     self.tb = self.t
-        #     self.xt = l
-        #     self.xt0 = l
-        #     self.vt0 = 0
-
-        # if self.xt <= 0:
-        #     self.tb = self.t
-        #     self.xt = 0
-        #     self.xt0 = 0
-        #     self.vt0 = 0
-
         xB = (l-self.xt)*cos_alpha
         yB = h+(l-self.xt)*sin_alpha
         self.draw_circle(xB,yB,rB*4)
@@ -254,7 +242,7 @@ class DC_GlWidget(QGLWidget):
         glViewport(0, 0, w, h)
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
-        zoom = 1
+        zoom = 0.5
         glOrtho(-zoom, zoom, -zoom, zoom, -zoom, zoom)
         glMatrixMode(GL_MODELVIEW)
 
@@ -282,15 +270,11 @@ class DC_GlWidget(QGLWidget):
         glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, color)
 
     def upload_dc_motor(self, sp):
-        
         self.t += 0.01
-        self.updateGL()
-        self.i +=1
-        if self.i == 10:
-            self.i = 0
-            self.alpha_sp = self.pid_x.get_output(sp-self.xt)
-            self.wt_sp = self.pid_alpha.get_output(self.alpha_sp-self.alpha)
+        self.alpha_sp = self.pid_x.get_output(sp-self.xt)
+        self.wt_sp = self.pid_alpha.get_output(self.alpha_sp-self.alpha)
         self.U = self.pid_w.get_output(self.wt_sp - self.wt)
+        self.updateGL()
         
 class MainWindow(QtWidgets.QWidget):
     

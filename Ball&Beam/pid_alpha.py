@@ -108,11 +108,11 @@ class InvalidValue(Exception):
         Exception.__init__(self, "Not real solution")
 
 h = 0.08
+l = 0.4
 d = 0.06
-l = 0.6
-k = 0.12
-xd = l-d
-yd = -0.02
+k = 0.08
+xd = 0.4 - d
+yd = 0.0
 
 mB = 0.029
 mb = 0.334
@@ -148,7 +148,7 @@ class DC_GlWidget(QGLWidget):
         self.part_alpha = 0
 
         # self.pid_alpha = PIDController(P=10, I=0, D=0, limit=2*np.pi)
-        self.pid_alpha = PIDController(P=20, I=0, D=0, limit=74)
+        self.pid_alpha = PIDController(P=30, I=0, D=0, limit=74)
         self.pid_w = PIDController(P=0.2, I=0.8, D=0, limit=24)
 
     def paintGL(self):
@@ -211,7 +211,7 @@ class DC_GlWidget(QGLWidget):
         glViewport(0, 0, w, h)
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
-        zoom = 1
+        zoom = 0.5
         glOrtho(-zoom, zoom, -zoom, zoom, -zoom, zoom)
         glMatrixMode(GL_MODELVIEW)
 
