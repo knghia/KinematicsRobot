@@ -1,6 +1,4 @@
 #include "fuzzy.h"
-#include <inttypes.h>
-#include <stdio.h>
 
 typedef struct{
     f32 x;
@@ -13,14 +11,21 @@ typedef struct{
     f32 c;
 }Line __attribute__((aligned (4)));
 
-
+f32 rules[7][7]= {
+    {NB,NB,NB,NB,NM,NS,ZZ},
+    {NB,NB,NB,NM,NS,ZZ,PS},
+    {NB,NB,NM,NS,ZZ,PS,PM},
+    {NB,NM,NS,ZZ,PS,PM,PB},
+    {NM,NS,ZZ,PS,PM,PB,PB},
+    {NS,ZZ,PS,PM,PB,PB,PB},
+    {ZZ,PS,PM,PB,PB,PB,PB}
+};
 /*
-A = (xA, yA)
-B = (xB, yB)
+    A = (xA, yA)
+    B = (xB, yB)
 
-AB : (x- xA)/(xB- xA) = (y- yB)/(yB- yA)
+    AB : (x- xA)/(xB- xA) = (y- yB)/(yB- yA)
 */
-
 extern bool point_cvt_line(Point p1, Point p2, Line *l0){
     if (p1.x == p2.x && p1.y == p2.y){
         return false;
@@ -33,25 +38,18 @@ extern bool point_cvt_line(Point p1, Point p2, Line *l0){
         l0->a = 0; l0->b = 1; l0->c = p1.y;
         return true;
     }
-    f32 s_a = 1/(p2.x - p1.x);
-    f32 s_b = 1/(p2.y - p1.y);
+    f32 s_a = p2.x - p1.x;
+    f32 s_b = p2.y - p1.y;
 
-    l0->a = s_a;
-    l0->b = -s_b;
-    l0->c = -(p1.x*s_a - p1.y*s_b);
+    l0->a = s_b/s_a;
+    l0->b = -1;
+    l0->c = -(p1.x*s_b/s_a - p1.y);
     return true;
 }
-
 extern f32 line_get_value(Line l0, float x){
     f32 y = 0;
-    y = (-l0.a*x - l0.c)/l0.b;
+    y = l0.a*x + l0.c;
     return y;
-}
-
-void printLine(Line *l0,int len){
-    for(int i=0;i<len;i++){
-        printf("%f %f %f \r\n", l0[i].a, l0[i].b, l0[i].c);
-    }
 }
 
 Line line_NB[3] = {0};
@@ -64,11 +62,11 @@ Line line_PB[3] = {0};
 
 extern void fuzzy_init(void){
     #if !defined(NB) || !defined(NM) || !defined(NS) || !defined(ZZ) || !defined(PS) || !defined(PM) || !defined(PB)
-    #error "don't define base paramters"
+        #error "don't define base paramters"
     #endif
     /*
         load line NB
-        line NB 0: y = 1;
+        line NB 0: A(NB, 1) -> y = 1;
         line NB 1: A(NB, 1), B(NM, 0)
         line NB 2: y = 0;
     */
@@ -194,44 +192,82 @@ extern void fuzzy_init(void){
     line_PB[2].c = -1;
 }
 
-const int scaler[7] = {-24, -16, -8, 0, 8, 16, 24};
-
-void fuzzy_get_nuy(f32 tau){
-    f32 nuy[7] = {0};
-    
-    if (tau<=NB){
-        nuy[0] = line_get_value(line_NB[1], tau);
-    }
-    else if(NB<=tau && tau<NM){
-        nuy[0] = line_get_value(line_NB[2], tau);
-        nuy[1] = line_get_value(line_NM[1], tau);
-    }
-    else if(NM<=tau && tau<NS){
-        nuy[1] = line_get_value(line_NM[2], tau);
-        nuy[2] = line_get_value(line_NS[1], tau);
-    }
-    else if(NS<=tau && tau<ZZ){
-        nuy[2] = line_get_value(line_NS[2], tau);
-        nuy[3] = line_get_value(line_ZZ[1], tau);
-    }
-    else if(ZZ<=tau && tau<PS){
-        nuy[3] = line_get_value(line_ZZ[2], tau);
-        nuy[4] = line_get_value(line_PS[1], tau);
-    }
-    else if(PS<=tau && tau<PM){
-        nuy[4] = line_get_value(line_PS[2], tau);
-        nuy[5] = line_get_value(line_PM[1], tau);
-    }
-    else if(PM<=tau && tau<PB){
-        nuy[5] = line_get_value(line_PM[2], tau);
-        nuy[6] = line_get_value(line_PB[1], tau);
-    }
-    else{
-        nuy[7] = 1;
-    } 
- 
-    printf("\r\n nuy : ");
+extern i08 fuzzy_get_nuy(f32 input, f32 *nuy){
     for(u08 i=0;i<7;i++){
-        printf("%2.3f ", nuy[i]);
+        nuy[i] = 0;
     }
+    if (input< NB){
+        nuy[0] = line_get_value(line_NB[0], input);
+    }
+    else if(NB<= input && input< NM){
+        nuy[0] = line_get_value(line_NB[1], input);
+        nuy[1] = line_get_value(line_NM[1], input);
+        return 0;
+    }
+    else if(NM<= input && input< NS){
+        nuy[1] = line_get_value(line_NM[2], input);
+        nuy[2] = line_get_value(line_NS[1], input);
+        return 1;
+    }
+    else if(NS<= input && input< ZZ){
+        nuy[2] = line_get_value(line_NS[2], input);
+        nuy[3] = line_get_value(line_ZZ[1], input);
+        return 2;
+    }
+    else if(ZZ<= input && input< PS){
+        nuy[3] = line_get_value(line_ZZ[2], input);
+        nuy[4] = line_get_value(line_PS[1], input);
+        return 3;
+    }
+    else if(PS<= input && input< PM){
+        nuy[4] = line_get_value(line_PS[2], input);
+        nuy[5] = line_get_value(line_PM[1], input);
+        return 4;
+    }
+    else if(PM<= input && input< PB){
+        nuy[5] = line_get_value(line_PM[2], input);
+        nuy[6] = line_get_value(line_PB[1], input);
+        return 5;
+    }
+    else if(PB<= input){
+        nuy[6] = line_get_value(line_PB[2], input);
+        return 6;
+    }
+    return -1;
+}
+
+#define min(x,y)    (x<y?x:y)
+
+f32 fuzzy_get_value(f32 e, f32 ce){
+    f32 nuy_e[7] = {0};
+    f32 nuy_ce[7] = {0};
+    i08 i_e, j_ce,fuzzy_sum = 0;
+    i_e = fuzzy_get_nuy(e, nuy_e);
+    j_ce = fuzzy_get_nuy(ce, nuy_ce);
+    for(i08 i=i_e; i<i_e+2; i++){
+        for(i08 j=j_ce; j<j_ce+2; j++){
+           fuzzy_sum += min(nuy_e[i], nuy_ce[j])*rules[i][j];
+        }
+    }
+    return fuzzy_sum;
+}
+
+f32 pid_fuzzy_upload(PIDFuzzy* pid,f32 error){
+	f32 e,ce;
+	pid->P = pid->Kp*error*pid->K;
+
+	e = pid->Ki*error;
+	ce = pid->Kd*(error- pid->PartError);
+
+	pid->FV = fuzzy_get_value(e, ce);
+
+	pid->I += pid->K*pid->FV;
+	pid->I = _constrain(pid->I, -pid->Limit, pid->Limit);
+
+	pid->D = pid->K*pid->FV;
+
+	pid->Output = pid->P + pid->I + pid->D;
+	pid->Output = _constrain(pid->Output, -pid->Limit, pid->Limit);
+	pid->PartError = error;
+	return pid->Output;
 }

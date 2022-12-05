@@ -5,29 +5,39 @@
 extern "C" {
 #endif
 
-#define NB  -3
-#define NM  -2
-#define NS  -1
-#define ZZ  0
-#define PS  1
-#define PM  2
-#define PB  3
-
-#define DE_NB    -24
-#define DE_NM    -16
-#define DE_NS    -8
-#define DE_ZZ    0
-#define DE_PS    8
-#define DE_PM    16
-#define DE_PB    24
-
+#include<inttypes.h>
 #define u08 uint8_t
 #define u16 uint16_t
 #define u32 uint32_t
+
+#define i08 int8_t
+#define i16 int16_t
+#define i32 int32_t
 #define f32 float
 
+#define NB  -30
+#define NM  -20
+#define NS  -10
+#define ZZ  0
+#define PS  10
+#define PM  20
+#define PB  30
+#define _constrain(amt,low,high) ((amt)<(low)?(low):((amt)>(high)?(high):(amt)))
+
 extern void fuzzy_init(void);
-void fuzzy_get_nuy(f32 tau);
+extern i08 fuzzy_get_nuy(f32 input, f32 *nuy);
+extern f32 fuzzy_get_value(f32 e, f32 ce);
+
+typedef struct{
+	f32 K, Kp, Ki, Kd;
+	f32 Limit;
+	f32 P, I, D;
+	f32 PartError;
+	f32 Output;
+    f32 FV;
+}PIDFuzzy;
+
+extern f32 pid_fuzzy_upload(PIDFuzzy* pid,f32 e);
 
 #ifdef __cplusplus
 }
