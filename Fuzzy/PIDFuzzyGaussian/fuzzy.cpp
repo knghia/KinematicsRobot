@@ -12,18 +12,17 @@ typedef struct{
 }Line __attribute__((aligned (4)));
 
 f32 rules[7][7]= {
-    {NB,NB,NB,NB,NM,NS,ZZ},
-    {NB,NB,NB,NM,NS,ZZ,PS},
-    {NB,NB,NM,NS,ZZ,PS,PM},
-    {NB,NM,NS,ZZ,PS,PM,PB},
-    {NM,NS,ZZ,PS,PM,PB,PB},
-    {NS,ZZ,PS,PM,PB,PB,PB},
-    {ZZ,PS,PM,PB,PB,PB,PB}
+ {NB,NB,NB,NB,NM,NS,ZZ},
+ {NB,NB,NB,NM,NS,ZZ,PS},
+ {NB,NB,NM,NS,ZZ,PS,PM},
+ {NB,NM,NS,ZZ,PS,PM,PB},
+ {NM,NS,ZZ,PS,PM,PB,PB},
+ {NS,ZZ,PS,PM,PB,PB,PB},
+ {ZZ,PS,PM,PB,PB,PB,PB}
 };
 /*
     A = (xA, yA)
     B = (xB, yB)
-
     AB : (x- xA)/(xB- xA) = (y- yB)/(yB- yA)
 */
 extern bool point_cvt_line(Point p1, Point p2, Line *l0){
@@ -238,12 +237,13 @@ extern i08 fuzzy_get_nuy(f32 input, f32 *nuy){
 
 #define min(x,y)    (x<y?x:y)
 
-f32 fuzzy_get_value(f32 e, f32 ce){
+extern f32 fuzzy_get_value(f32 e, f32 ce){
     f32 nuy_e[7] = {0};
     f32 nuy_ce[7] = {0};
-    i08 i_e, j_ce,fuzzy_sum = 0;
+    i08 i_e, j_ce = 0;
     i_e = fuzzy_get_nuy(e, nuy_e);
     j_ce = fuzzy_get_nuy(ce, nuy_ce);
+    f32 fuzzy_sum = 0;
     for(i08 i=i_e; i<i_e+2; i++){
         for(i08 j=j_ce; j<j_ce+2; j++){
            fuzzy_sum += min(nuy_e[i], nuy_ce[j])*rules[i][j];
@@ -252,7 +252,7 @@ f32 fuzzy_get_value(f32 e, f32 ce){
     return fuzzy_sum;
 }
 
-f32 pid_fuzzy_upload(PIDFuzzy* pid,f32 error){
+extern f32 pid_fuzzy_upload(PIDFuzzy* pid,f32 error){
 	f32 e,ce;
 	pid->P = pid->Kp*error*pid->K;
 
@@ -267,7 +267,7 @@ f32 pid_fuzzy_upload(PIDFuzzy* pid,f32 error){
 	pid->D = pid->K*pid->FV;
 
 	pid->Output = pid->P + pid->I + pid->D;
-	pid->Output = _constrain(pid->Output, -pid->Limit, pid->Limit);
-	pid->PartError = error;
+	pid->Output = _constrain(pid->Output, -pid->dLimit, pid->uLimit);
+	pid->PartError = e;
 	return pid->Output;
 }
